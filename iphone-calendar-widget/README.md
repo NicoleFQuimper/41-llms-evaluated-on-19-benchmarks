@@ -30,8 +30,17 @@ Events never appear in the task list. Tasks never appear on the clock.
 
 Reminders with a **due time** (not just a date):
 - Appear as a **light baby-blue pixel heart** on the clock at that start time (duration ignored)
-- Sort to the **top** of the task list in the same baby blue
-- Date-only / no-time tasks sit below them
+- Sort to the **top** of the task list
+
+## Task heart colors
+
+| Task state | Heart color |
+|------------|-------------|
+| Today / open quest | **Baby blue** pixel heart |
+| Overdue | **Cute purple** pixel heart |
+| Completed | Muted / filled |
+
+Event names on the dial **curve along the sector arc** (not a flat text box).
 
 ## Tick off tasks
 
