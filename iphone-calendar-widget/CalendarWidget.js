@@ -86,10 +86,12 @@ const themes = {
 }
 
 const T = themes[resolveTheme()]
-const BABY_BLUE = new Color("#A8D8FF") // today / timed-task hearts
-const CUTE_PURPLE = new Color("#C084FC") // overdue task hearts
+const BABY_BLUE = new Color("#A8D8FF") // timed tasks due today
+const CUTE_PURPLE = new Color("#C084FC") // timed tasks that are overdue
+const KAWAII_PINK = new Color("#FF8FBF") // untimed tasks (never overdue)
 const OVERDUE_TEXT = new Color("#7C3AED")
 const TODAY_TEXT = new Color("#4A7AA8")
+const PINK_TEXT = new Color("#C45B8C")
 
 function rad(deg) {
   return (deg * Math.PI) / 180
@@ -186,19 +188,20 @@ function hasDueTime(reminder) {
   return due.getHours() !== 0 || due.getMinutes() !== 0 || due.getSeconds() !== 0
 }
 
+/** Overdue only applies to timed reminders (date-only / open quests cannot be overdue). */
 function isOverdueTask(reminder, now) {
   if (reminder.isCompleted) return false
+  if (!hasDueTime(reminder)) return false
   const due = reminderDueDate(reminder)
   if (!due) return false
-  const dayStart = new Date(now || new Date())
-  dayStart.setHours(0, 0, 0, 0)
-  return due < dayStart
+  return due.getTime() < (now || new Date()).getTime()
 }
 
 function taskAccent(reminder, index) {
   if (reminder.isCompleted) return T.done
+  if (!hasDueTime(reminder)) return KAWAII_PINK
   if (isOverdueTask(reminder)) return CUTE_PURPLE
-  return BABY_BLUE // today + open quests
+  return BABY_BLUE
 }
 
 async function loadTasks(now) {
@@ -233,13 +236,18 @@ async function loadTasks(now) {
   })
 
   const tasks = open.concat(doneToday)
-  // Timed tasks first (baby blue), then untimed; completed sink to bottom
+  // Timed first (overdue → upcoming), then untimed pink quests; completed last
   tasks.sort((a, b) => {
     if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1
     const ta = hasDueTime(a)
     const tb = hasDueTime(b)
     if (ta !== tb) return ta ? -1 : 1
-    if (ta && tb) return reminderDueDate(a) - reminderDueDate(b)
+    if (ta && tb) {
+      const oa = isOverdueTask(a)
+      const ob = isOverdueTask(b)
+      if (oa !== ob) return oa ? -1 : 1
+      return reminderDueDate(a) - reminderDueDate(b)
+    }
     return (a.title || "").localeCompare(b.title || "")
   })
   return tasks
@@ -382,128 +390,88 @@ function drawSparkle(ctx, x, y, size, color) {
 }
 
 /**
- * Draw title along one or more arcs inside the event wedge
- * (curved around the clock — not a flat text block).
+ * Horizontal left→right event title, sized to the sector.
+ * Drawn last so it sits on top of all dial art.
  */
-function drawArcTextRow(ctx, text, cx, cy, radius, a0, a1, fontSize, color) {
-  const raw = String(text || "").trim()
-  if (!raw) return 0
-  const chars = raw.split("")
-  const span = Math.max(1, a1 - a0)
-  const arcLen = rad(span) * radius
-
-  let fs = fontSize
-  const adv = (ch, s) => (ch === " " ? s * 0.32 : s * 0.62)
-
-  while (fs >= 6) {
-    let need = 0
-    for (let i = 0; i < chars.length; i++) need += adv(chars[i], fs)
-    if (need <= arcLen * 0.96) break
-    fs -= 1
-  }
-
-  let total = 0
-  for (let i = 0; i < chars.length; i++) total += adv(chars[i], fs)
-  const textSpan = Math.min(span * 0.96, (total / radius) * (180 / Math.PI))
-  let a = (a0 + a1) / 2 - textSpan / 2
-
-  ctx.setFillColor(color)
-  ctx.setTextColor(color)
-  ctx.setFont(Font.boldSystemFont(fs))
-  ctx.setTextAlignedCenter()
-
-  for (let i = 0; i < chars.length; i++) {
-    const ch = chars[i]
-    const w = adv(ch, fs)
-    const step = (w / radius) * (180 / Math.PI)
-    const midA = a + step / 2
-    if (ch !== " ") {
-      const tw = fs * 0.85
-      const th = fs * 1.15
-      ctx.drawTextInRect(
-        ch,
-        new Rect(
-          cx + radius * sin(midA) - tw / 2,
-          cy - radius * cos(midA) - th / 2,
-          tw,
-          th
-        )
-      )
-    }
-    a += step
-  }
-  return fs
-}
-
-function fitArcLines(title, radiusOuter, radiusInner, spanDeg, maxFs) {
+function wrapTitleLines(text, maxChars) {
+  const words = String(text || "Event").trim().split(/\s+/)
   const lines = []
-  let left = String(title || "Event").trim().replace(/\s+/g, " ")
-  let r = radiusOuter
-  const minR = radiusInner
-  let fs = maxFs
-
-  while (left.length && r >= minR + fs * 0.4) {
-    const arcLen = rad(spanDeg) * r * 0.94
-    // largest fs that fits at least a few chars on this ring
-    let useFs = fs
-    while (useFs >= 6) {
-      const charW = useFs * 0.62
-      if (arcLen / charW >= 3) break
-      useFs -= 1
+  let line = ""
+  words.forEach((word) => {
+    const next = line ? `${line} ${word}` : word
+    if (next.length <= maxChars) {
+      line = next
+    } else {
+      if (line) lines.push(line)
+      if (word.length > maxChars) {
+        for (let i = 0; i < word.length; i += maxChars) {
+          const chunk = word.slice(i, i + maxChars)
+          if (i + maxChars < word.length) lines.push(chunk)
+          else line = chunk
+        }
+      } else {
+        line = word
+      }
     }
-    const maxChars = Math.max(3, Math.floor(arcLen / (useFs * 0.62)))
-    // prefer breaking on spaces
-    let take = Math.min(maxChars, left.length)
-    if (take < left.length) {
-      const slice = left.slice(0, take)
-      const sp = slice.lastIndexOf(" ")
-      if (sp >= Math.floor(maxChars * 0.4)) take = sp
-    }
-    const piece = left.slice(0, take).trim()
-    if (!piece) break
-    lines.push({ text: piece, radius: r, fontSize: useFs })
-    left = left.slice(take).trim()
-    r -= useFs * 1.18
-    fs = Math.min(fs, useFs)
-  }
-  // if leftover remains and we have room, cram on last line with ellipsis skip — append to last
-  if (left.length && lines.length) {
-    const last = lines[lines.length - 1]
-    last.text = (last.text + " " + left).trim()
-  }
-  return lines
+  })
+  if (line) lines.push(line)
+  return lines.length ? lines : ["Event"]
 }
 
-function drawEventLabelInSector(ctx, title, a0, a1, cx, cy, R, size, isCurrent) {
+function drawEventLabelLTR(ctx, title, a0, a1, cx, cy, R, size, isCurrent) {
   const span = a1 - a0
   if (span < 4) return
 
-  // Keep labels inside the faded wedge band (outside hub, inside outer ring)
-  const outerR = R * (span >= 50 ? 0.72 : 0.7)
-  const innerR = R * 0.3
-  const pad = Math.min(6, span * 0.08)
-  const la0 = a0 + pad
-  const la1 = a1 - pad
-  if (la1 - la0 < 3) return
+  const mid = (a0 + a1) / 2
+  const midR = R * 0.55
+  const halfRad = Math.min((span * Math.PI) / 360, Math.PI / 2)
+  const chord = Math.max(28, 2 * midR * Math.sin(halfRad))
+  let boxW = Math.min(size * 0.72, Math.max(chord * 0.95, size * 0.22))
+  let boxH = Math.min(size * 0.36, R * 0.42)
+  if (span >= 45) {
+    boxW = Math.min(size * 0.78, boxW * 1.15)
+    boxH = Math.min(size * 0.4, R * 0.48)
+  }
 
-  const maxFs = Math.floor(
-    Math.min(
-      size * (isCurrent ? 0.085 : 0.07),
-      ((la1 - la0) / 360) * Math.PI * outerR * 0.9
-    )
+  const lx = cx + midR * sin(mid) - boxW / 2
+  const ly = cy - midR * cos(mid) - boxH / 2
+
+  let bestFs = 8
+  let bestLines = wrapTitleLines(title, 14)
+  const maxFs = Math.floor(Math.min(boxH * 0.55, size * (isCurrent ? 0.09 : 0.075)))
+  for (let fs = maxFs; fs >= 8; fs--) {
+    const maxChars = Math.max(4, Math.floor((boxW * 0.92) / (fs * 0.55)))
+    const lines = wrapTitleLines(title, maxChars)
+    const totalH = lines.length * fs * 1.15
+    const longest = Math.max(...lines.map((l) => l.length)) * fs * 0.55
+    if (totalH <= boxH * 0.95 && longest <= boxW * 0.95) {
+      bestFs = fs
+      bestLines = lines
+      break
+    }
+  }
+
+  const lineH = bestFs * 1.15
+  const blockH = bestLines.length * lineH + 6
+  const blockW =
+    Math.min(boxW, Math.max(...bestLines.map((l) => l.length)) * bestFs * 0.55 + 10)
+  const bx = lx + (boxW - blockW) / 2
+  const by = ly + (boxH - blockH) / 2
+
+  // Soft chip so text stays readable on top of wedges / ticks / hand
+  ctx.setFillColor(
+    T.kawaii ? new Color("#FFF7FB", 0.88) : new Color("#0A0C10", 0.75)
   )
+  ctx.fillRect(new Rect(bx, by, blockW, blockH))
+  ctx.setStrokeColor(isCurrent ? T.hand : withAlpha(T.label, 0.5))
+  ctx.setLineWidth(isCurrent ? 2 : 1)
+  ctx.strokeRect(new Rect(bx, by, blockW, blockH))
 
-  const rows = fitArcLines(title, outerR, innerR, la1 - la0, Math.max(8, maxFs))
-  const color = isCurrent
-    ? T.kawaii
-      ? new Color("#5B2148")
-      : Color.white()
-    : T.kawaii
-      ? new Color("#6B2D5B", 0.92)
-      : new Color("#F4F6F8", 0.9)
-
-  rows.forEach((row) => {
-    drawArcTextRow(ctx, row.text, cx, cy, row.radius, la0, la1, row.fontSize, color)
+  ctx.setTextAlignedCenter()
+  ctx.setTextColor(T.title)
+  ctx.setFont(Font.boldSystemFont(bestFs))
+  bestLines.forEach((line, i) => {
+    ctx.drawTextInRect(line, new Rect(bx, by + 3 + i * lineH, blockW, lineH))
   })
 }
 
