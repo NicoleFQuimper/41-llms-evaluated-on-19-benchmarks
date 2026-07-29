@@ -36,11 +36,12 @@ Reminders with a **due time** (not just a date):
 
 | Task state | Heart color |
 |------------|-------------|
-| Today / open quest | **Baby blue** pixel heart |
-| Overdue | **Cute purple** pixel heart |
+| Untimed / open quest | **Pink** (cannot be overdue) |
+| Timed, due today/upcoming | **Baby blue** |
+| Timed + overdue | **Cute purple** |
 | Completed | Muted / filled |
 
-Event names on the dial **curve along the sector arc** (not a flat text box).
+Event names on the dial are **left→right**, drawn **on top** of all other dial art.
 
 ## Tick off tasks
 

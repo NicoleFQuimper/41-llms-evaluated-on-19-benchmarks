@@ -564,24 +564,6 @@ function drawDial(size, timedEvents, dayStart, dayEnd, now, timedTasks) {
     }
   }
 
-  // Event names inside faded wedges (current first / on top for quick glance)
-  sectorMeta
-    .slice()
-    .sort((a, b) => (a.isCurrent === b.isCurrent ? 0 : a.isCurrent ? 1 : -1))
-    .forEach((sec) => {
-      drawEventLabelInSector(
-        ctx,
-        sec.title,
-        sec.a0,
-        sec.a1,
-        cx,
-        cy,
-        R,
-        size,
-        sec.isCurrent
-      )
-    })
-
   if (T.kawaii) {
     ;[30, 100, 170, 240, 300].forEach((a, i) => {
       const colors = [new Color("#FF80B5"), new Color("#C4B5FD"), new Color("#7DD3FC")]
@@ -628,28 +610,31 @@ function drawDial(size, timedEvents, dayStart, dayEnd, now, timedTasks) {
   ctx.setTextColor(T.hand)
   ctx.drawTextInRect(T.centerTag, new Rect(0, cy + tSize * 0.35, size, tagSize + 2))
 
+  // Event names LAST — left→right, on top of every dial art layer
+  sectorMeta
+    .slice()
+    .sort((a, b) => (a.isCurrent === b.isCurrent ? 0 : a.isCurrent ? 1 : -1))
+    .forEach((sec) => {
+      drawEventLabelLTR(ctx, sec.title, sec.a0, sec.a1, cx, cy, R, size, sec.isCurrent)
+    })
+
   return ctx.getImage()
 }
 
 function taskMeta(reminder) {
   const due = reminderDueDate(reminder)
   if (!due) return T.kawaii ? "open quest" : "no due date"
-  const dayStart = new Date()
-  dayStart.setHours(0, 0, 0, 0)
-  if (due < dayStart) {
-    return hasDueTime(reminder)
-      ? `overdue · ${hhmm(due)}`
-      : T.kawaii
-        ? "overdue ✦"
-        : "overdue"
+  if (!hasDueTime(reminder)) {
+    return T.kawaii ? "open quest" : "no time set"
   }
-  if (hasDueTime(reminder)) return `due ${hhmm(due)}`
-  return T.kawaii ? "due today ♡" : "due today"
+  if (isOverdueTask(reminder)) return `overdue · ${hhmm(due)}`
+  return `due ${hhmm(due)}`
 }
 
 function addTaskRow(parent, reminder, index) {
   const done = !!reminder.isCompleted
   const overdue = isOverdueTask(reminder)
+  const timed = hasDueTime(reminder)
   const accent = taskAccent(reminder, index)
 
   const row = parent.addStack()
@@ -669,7 +654,13 @@ function addTaskRow(parent, reminder, index) {
 
   const title = col.addText(reminder.title || "Untitled")
   title.font = Font.semiboldSystemFont(11)
-  title.textColor = done ? T.done : overdue ? OVERDUE_TEXT : TODAY_TEXT
+  title.textColor = done
+    ? T.done
+    : overdue
+      ? OVERDUE_TEXT
+      : timed
+        ? TODAY_TEXT
+        : PINK_TEXT
   title.lineLimit = 1
   title.minimumScaleFactor = 0.8
 
@@ -679,7 +670,9 @@ function addTaskRow(parent, reminder, index) {
     ? T.done
     : overdue
       ? withAlpha(CUTE_PURPLE, 0.95)
-      : withAlpha(BABY_BLUE, 0.95)
+      : timed
+        ? withAlpha(BABY_BLUE, 0.95)
+        : withAlpha(KAWAII_PINK, 0.95)
   meta.lineLimit = 1
 
   return row
