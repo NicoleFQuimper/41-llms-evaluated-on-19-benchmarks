@@ -1,27 +1,25 @@
 // ============================================================
-// SECTOGRAPH 24H — v4
-// Themes: classic | kawaii (THEME below, or Widget Parameter)
+// SECTOGRAPH 24H — v5
+// EVENTS (Calendar) → shown ONLY on the 24h clock
+// TASKS  (Reminders) → heart / bubble list you can tick off
+//
+// Themes: classic | kawaii  (THEME below, or Widget Parameter)
 // Layouts:
 //   small  → clock only
-//   medium → tasks (1 col, left) + sectograph
-//   large  → sectograph (left) + tasks (2 cols, right)
-// Tap a bubble to tick a calendar task on/off.
+//   medium → tasks (1 col, left) + clock
+//   large  → clock (left) + tasks (2 cols, right)
 // ============================================================
 
 const THEME = "kawaii" // "kawaii" | "classic"
-// Used for tap-to-toggle URLs. Prefer live script name when available.
 const SCRIPT_NAME_FALLBACK = "Sectograph 24h"
 
 const family = config.widgetFamily || "medium"
 const DAY_MIN = 24 * 60
-const STORE_NAME = "sectograph-completed.json"
 
 function resolveTheme() {
   const param = (args.widgetParameter || "").trim().toLowerCase()
-  if (param === "classic" || param === "kawaii") return param
-  // allow "kawaii,classic" style? no — exact only
-  if (param.startsWith("classic")) return "classic"
-  if (param.startsWith("kawaii")) return "kawaii"
+  if (param === "classic" || param.startsWith("classic")) return "classic"
+  if (param === "kawaii" || param.startsWith("kawaii")) return "kawaii"
   return THEME === "classic" ? "classic" : "kawaii"
 }
 
@@ -42,7 +40,6 @@ const themes = {
     bubbleEmpty: new Color("#3A4555"),
     bubbleStroke: new Color("#8B95A5"),
     brandText: "SECTOGRAPH",
-    subtitle: "24-hour clock",
     freeText: "No tasks left",
     centerTag: "24H",
     hubFill: new Color("#0A0C10", 0.92),
@@ -72,7 +69,6 @@ const themes = {
     bubbleEmpty: new Color("#FFD6EA"),
     bubbleStroke: new Color("#FF8FBF"),
     brandText: "✦ MAGICAL SECTOGRAPH ✦",
-    subtitle: "kawaii 24h",
     freeText: "all clear, starlight ♡",
     centerTag: "♡ 24H",
     hubFill: new Color("#FFF7FB", 0.95),
@@ -91,7 +87,6 @@ const themes = {
 
 const T = themes[resolveTheme()]
 
-// ——— math / time ———
 function rad(deg) {
   return (deg * Math.PI) / 180
 }
@@ -110,13 +105,19 @@ function ang(mins) {
 function hhmm(date) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
 }
-function dayKey(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+function sameDay(a, b) {
+  return (
+    a &&
+    b &&
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
 }
 
-function colorFor(event, i) {
+function colorFor(item, i) {
   try {
-    if (!T.kawaii && event.calendar && event.calendar.color) return event.calendar.color
+    if (!T.kawaii && item.calendar && item.calendar.color) return item.calendar.color
   } catch (_) {}
   return T.palette[i % T.palette.length]
 }
@@ -136,52 +137,6 @@ function withAlpha(color, alpha) {
   }
 }
 
-// ——— completion store (tick off calendar tasks) ———
-function storePath() {
-  const fm = FileManager.local()
-  return fm.joinPath(fm.documentsDirectory(), STORE_NAME)
-}
-
-function readCompleted() {
-  const fm = FileManager.local()
-  const path = storePath()
-  if (!fm.fileExists(path)) return {}
-  try {
-    return JSON.parse(fm.readString(path)) || {}
-  } catch (_) {
-    return {}
-  }
-}
-
-function writeCompleted(data) {
-  const fm = FileManager.local()
-  fm.writeString(storePath(), JSON.stringify(data))
-}
-
-function isDone(completedMap, key, id) {
-  return (completedMap[key] || []).indexOf(id) >= 0
-}
-
-function toggleDone(id, now) {
-  const key = dayKey(now)
-  const data = readCompleted()
-  const list = data[key] ? data[key].slice() : []
-  const idx = list.indexOf(id)
-  if (idx >= 0) list.splice(idx, 1)
-  else list.push(id)
-  data[key] = list
-  // drop older days
-  Object.keys(data).forEach((k) => {
-    if (k !== key) delete data[k]
-  })
-  writeCompleted(data)
-  return idx < 0
-}
-
-function eventId(event) {
-  return event.identifier || `${event.title}-${event.startDate.getTime()}`
-}
-
 function toggleUrl(id) {
   let name = SCRIPT_NAME_FALLBACK
   try {
@@ -190,8 +145,8 @@ function toggleUrl(id) {
   return `scriptable:///run?scriptName=${encodeURIComponent(name)}&toggle=${encodeURIComponent(id)}`
 }
 
-// ——— calendar ———
-async function loadDayEvents(now) {
+// ——— EVENTS = Calendar (clock only) ———
+async function loadEvents(now) {
   const start = new Date(now)
   start.setHours(0, 0, 0, 0)
   const end = new Date(start)
@@ -201,13 +156,80 @@ async function loadDayEvents(now) {
     .filter((e) => !e.isAllDay)
     .filter((e) => e.endDate > start && e.startDate < end)
     .sort((a, b) => a.startDate - b.startDate)
-  const allDay = all.filter((e) => e.isAllDay)
-  // task list = all-day first, then timed
-  const tasks = allDay.concat(timed)
-  return { start, end, timed, allDay, tasks }
+  return { start, end, timed }
 }
 
-// ——— drawing helpers ———
+// ——— TASKS = Reminders (list only, tickable) ———
+function reminderDueDate(reminder) {
+  if (reminder.dueDate) return reminder.dueDate
+  try {
+    if (reminder.dueDateComponents && reminder.dueDateComponents.date) {
+      return reminder.dueDateComponents.date
+    }
+  } catch (_) {}
+  return null
+}
+
+async function loadTasks(now) {
+  const dayStart = new Date(now)
+  dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(dayStart)
+  dayEnd.setDate(dayEnd.getDate() + 1)
+
+  let incomplete = []
+  let completed = []
+  try {
+    incomplete = await Reminder.allIncomplete()
+  } catch (_) {
+    incomplete = []
+  }
+  try {
+    completed = await Reminder.allCompleted()
+  } catch (_) {
+    completed = []
+  }
+
+  const open = incomplete.filter((r) => {
+    const due = reminderDueDate(r)
+    if (!due) return true // undated todo
+    return due < dayEnd // overdue or due today
+  })
+
+  const doneToday = completed.filter((r) => {
+    if (r.completionDate && sameDay(r.completionDate, now)) return true
+    const due = reminderDueDate(r)
+    return due && sameDay(due, now) && r.isCompleted
+  })
+
+  const tasks = open.concat(doneToday)
+  tasks.sort((a, b) => {
+    if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1
+    const da = reminderDueDate(a)
+    const db = reminderDueDate(b)
+    if (!da && !db) return (a.title || "").localeCompare(b.title || "")
+    if (!da) return 1
+    if (!db) return -1
+    return da - db
+  })
+  return tasks
+}
+
+async function toggleReminder(id) {
+  const decoded = decodeURIComponent(id)
+  let pool = []
+  try {
+    pool = pool.concat(await Reminder.allIncomplete())
+  } catch (_) {}
+  try {
+    pool = pool.concat(await Reminder.allCompleted())
+  } catch (_) {}
+  const match = pool.find((r) => r.identifier === decoded)
+  if (!match) return
+  match.isCompleted = !match.isCompleted
+  match.save()
+}
+
+// ——— drawing ———
 function fillWedge(ctx, cx, cy, radius, a0, a1, color) {
   if (a1 <= a0) return
   const path = new Path()
@@ -281,6 +303,7 @@ function drawPixelHeart(ctx, x, y, pixel, fill, outline) {
   }
 }
 
+/** Task bubble: heart (kawaii) or circle checkbox (classic). */
 function bubbleImage(done, accent) {
   const size = 22
   const ctx = new DrawContext()
@@ -294,15 +317,12 @@ function bubbleImage(done, accent) {
     const hy = (size - HEART_PX.length * px) / 2
     if (done) {
       drawPixelHeart(ctx, hx, hy, px, accent, Color.white())
-      // little check sparkle
       ctx.setFillColor(Color.white())
       ctx.fillRect(new Rect(hx + px, hy + px, px, px))
     } else {
-      // hollow heart = outline only + soft fill
       drawPixelHeart(ctx, hx, hy, px, T.bubbleEmpty, T.bubbleStroke)
     }
   } else {
-    // normal circular task bubble
     const pad = 2
     const r = size - pad * 2
     ctx.setFillColor(done ? accent : T.bubbleEmpty)
@@ -311,7 +331,6 @@ function bubbleImage(done, accent) {
     ctx.setLineWidth(2)
     ctx.strokeEllipse(new Rect(pad, pad, r, r))
     if (done) {
-      // checkmark
       const p = new Path()
       p.move(new Point(6.5, 11))
       p.addLine(new Point(9.5, 14.5))
@@ -330,7 +349,8 @@ function drawSparkle(ctx, x, y, size, color) {
   drawLine(ctx, x, y - size, x, y + size, color, 1.5)
 }
 
-function drawDial(size, timed, dayStart, dayEnd, now, completedMap) {
+/** Clock shows Calendar EVENTS only — never Reminders/tasks. */
+function drawDial(size, timed, dayStart, dayEnd, now) {
   const ctx = new DrawContext()
   ctx.size = new Size(size, size)
   ctx.opaque = false
@@ -338,7 +358,6 @@ function drawDial(size, timed, dayStart, dayEnd, now, completedMap) {
   const cx = size / 2
   const cy = size / 2
   const R = size * 0.47
-  const key = dayKey(now)
 
   if (T.kawaii) {
     ctx.setFillColor(new Color("#FFB7DE", 0.35))
@@ -363,22 +382,9 @@ function drawDial(size, timed, dayStart, dayEnd, now, completedMap) {
     let a0 = ang(minsOf(s))
     let a1 = e.getTime() >= dayEnd.getTime() ? 360 : ang(minsOf(e))
     if (a1 - a0 < 3) a1 = a0 + 3
-    const done = isDone(completedMap, key, eventId(event))
-    const c = done ? T.done : colorFor(event, i)
+    const c = colorFor(event, i)
     fillWedge(ctx, cx, cy, R * 0.88, a0, a1, withAlpha(c, T.kawaii ? 0.4 : 0.55))
     strokeArc(ctx, cx, cy, R * 0.93, size * 0.07, a0, a1, c)
-    if (T.kawaii) {
-      const mid = (a0 + a1) / 2
-      const px = Math.max(2, Math.round(size * 0.012))
-      drawPixelHeart(
-        ctx,
-        cx + R * 0.93 * sin(mid) - (HEART_PX[0].length * px) / 2,
-        cy - R * 0.93 * cos(mid) - (HEART_PX.length * px) / 2,
-        px,
-        c,
-        Color.white()
-      )
-    }
   })
 
   for (let h = 0; h < 24; h++) {
@@ -455,16 +461,25 @@ function drawDial(size, timed, dayStart, dayEnd, now, completedMap) {
   return ctx.getImage()
 }
 
-// ——— task rows ———
-function addTaskRow(parent, event, index, completedMap, now) {
-  const id = eventId(event)
-  const done = isDone(completedMap, dayKey(now), id)
-  const accent = colorFor(event, index)
+function taskMeta(reminder) {
+  const due = reminderDueDate(reminder)
+  if (!due) return T.kawaii ? "open quest" : "no due date"
+  const hasTime =
+    due.getHours() !== 0 || due.getMinutes() !== 0 || due.getSeconds() !== 0
+  const dayStart = new Date()
+  dayStart.setHours(0, 0, 0, 0)
+  if (due < dayStart) return T.kawaii ? "overdue ✦" : "overdue"
+  return hasTime ? `due ${hhmm(due)}` : T.kawaii ? "due today ♡" : "due today"
+}
+
+function addTaskRow(parent, reminder, index) {
+  const done = !!reminder.isCompleted
+  const accent = colorFor(reminder, index)
 
   const row = parent.addStack()
   row.layoutHorizontally()
   row.centerAlignContent()
-  row.url = toggleUrl(id)
+  row.url = toggleUrl(reminder.identifier)
   row.size = new Size(0, 0)
 
   const bubble = row.addImage(bubbleImage(done, accent))
@@ -476,15 +491,13 @@ function addTaskRow(parent, event, index, completedMap, now) {
   col.layoutVertically()
   col.size = new Size(0, 0)
 
-  const title = col.addText(event.title || "Untitled")
+  const title = col.addText(reminder.title || "Untitled")
   title.font = Font.semiboldSystemFont(11)
   title.textColor = done ? T.done : T.title
   title.lineLimit = 1
   title.minimumScaleFactor = 0.8
 
-  const meta = col.addText(
-    event.isAllDay ? "all day" : `${hhmm(event.startDate)}–${hhmm(event.endDate)}`
-  )
+  const meta = col.addText(taskMeta(reminder))
   meta.font = Font.regularSystemFont(9)
   meta.textColor = done ? T.done : T.muted
   meta.lineLimit = 1
@@ -492,7 +505,7 @@ function addTaskRow(parent, event, index, completedMap, now) {
   return row
 }
 
-function addTaskColumn(stack, tasks, completedMap, now, startIndex, count) {
+function addTaskColumn(stack, tasks, startIndex, count) {
   const col = stack.addStack()
   col.layoutVertically()
   col.size = new Size(0, 0)
@@ -504,48 +517,33 @@ function addTaskColumn(stack, tasks, completedMap, now, startIndex, count) {
     empty.textColor = T.muted
     return col
   }
-  slice.forEach((event, i) => {
-    addTaskRow(col, event, startIndex + i, completedMap, now)
+  slice.forEach((task, i) => {
+    addTaskRow(col, task, startIndex + i)
     if (i < slice.length - 1) col.addSpacer(6)
   })
   return col
-}
-
-function sortTasksForList(tasks, completedMap, now) {
-  const key = dayKey(now)
-  // open tasks first, completed at bottom; keep time order within groups
-  return tasks.slice().sort((a, b) => {
-    const da = isDone(completedMap, key, eventId(a)) ? 1 : 0
-    const db = isDone(completedMap, key, eventId(b)) ? 1 : 0
-    if (da !== db) return da - db
-    if (a.isAllDay !== b.isAllDay) return a.isAllDay ? -1 : 1
-    return a.startDate - b.startDate
-  })
 }
 
 async function createWidget() {
   const widget = new ListWidget()
   widget.backgroundColor = T.bg
   widget.setPadding(10, 10, 10, 10)
-  // background tap opens calendar; task rows override with toggle URLs
   widget.url = "calshow://"
 
   const now = new Date()
-  const completedMap = readCompleted()
-  const { start, end, timed, tasks } = await loadDayEvents(now)
-  const list = sortTasksForList(tasks, completedMap, now)
+  const { start, end, timed } = await loadEvents(now)
+  const tasks = family === "small" ? [] : await loadTasks(now)
 
-  // —— SMALL: clock only ——
+  // —— SMALL: clock / events only ——
   if (family === "small") {
     widget.setPadding(6, 6, 6, 6)
     const dialSize = 155
-    const img = widget.addImage(drawDial(dialSize, timed, start, end, now, completedMap))
+    const img = widget.addImage(drawDial(dialSize, timed, start, end, now))
     img.imageSize = new Size(dialSize, dialSize)
     img.centerAlignImage()
     return widget
   }
 
-  // header
   const head = widget.addStack()
   head.layoutHorizontally()
   head.centerAlignContent()
@@ -553,20 +551,20 @@ async function createWidget() {
   brand.font = Font.boldSystemFont(T.kawaii ? 10 : 11)
   brand.textColor = T.brand
   head.addSpacer()
-  const open = list.filter((t) => !isDone(completedMap, dayKey(now), eventId(t))).length
+  const open = tasks.filter((t) => !t.isCompleted).length
   const count = head.addText(T.kawaii ? `♡ ${open} left` : `${open} left`)
   count.font = Font.mediumSystemFont(10)
   count.textColor = T.muted
   widget.addSpacer(6)
 
-  // —— LARGE: dial left, tasks 2 columns right ——
+  // —— LARGE: clock left, task hearts/bubbles in 2 columns ——
   if (family === "large") {
     const dialSize = 220
     const body = widget.addStack()
     body.layoutHorizontally()
     body.topAlignContent()
 
-    const img = body.addImage(drawDial(dialSize, timed, start, end, now, completedMap))
+    const img = body.addImage(drawDial(dialSize, timed, start, end, now))
     img.imageSize = new Size(dialSize, dialSize)
 
     body.addSpacer(10)
@@ -580,7 +578,7 @@ async function createWidget() {
     label.textColor = T.title
     right.addSpacer(8)
 
-    if (list.length === 0) {
+    if (tasks.length === 0) {
       const empty = right.addText(T.freeText)
       empty.font = Font.mediumSystemFont(12)
       empty.textColor = T.muted
@@ -588,15 +586,15 @@ async function createWidget() {
       const cols = right.addStack()
       cols.layoutHorizontally()
       cols.topAlignContent()
-      const perCol = Math.ceil(Math.min(list.length, 12) / 2)
-      addTaskColumn(cols, list, completedMap, now, 0, perCol)
+      const perCol = Math.ceil(Math.min(tasks.length, 12) / 2)
+      addTaskColumn(cols, tasks, 0, perCol)
       cols.addSpacer(8)
-      addTaskColumn(cols, list, completedMap, now, perCol, perCol)
+      addTaskColumn(cols, tasks, perCol, perCol)
     }
     return widget
   }
 
-  // —— MEDIUM: one task column on the LEFT + sectograph ——
+  // —— MEDIUM: one task column LEFT + clock ——
   const dialSize = 145
   const body = widget.addStack()
   body.layoutHorizontally()
@@ -609,20 +607,19 @@ async function createWidget() {
   label.font = Font.boldSystemFont(11)
   label.textColor = T.title
   left.addSpacer(6)
-  addTaskColumn(left, list, completedMap, now, 0, 4)
+  addTaskColumn(left, tasks, 0, 4)
 
   body.addSpacer(8)
 
-  const img = body.addImage(drawDial(dialSize, timed, start, end, now, completedMap))
+  const img = body.addImage(drawDial(dialSize, timed, start, end, now))
   img.imageSize = new Size(dialSize, dialSize)
 
   return widget
 }
 
-// ——— handle tap-to-toggle, then show / set widget ———
 const toggleId = args.queryParameters.toggle
 if (toggleId) {
-  toggleDone(decodeURIComponent(toggleId), new Date())
+  await toggleReminder(toggleId)
 }
 
 const widget = await createWidget()
@@ -631,7 +628,6 @@ widget.refreshAfterDate = new Date(Date.now() + 1000 * 30)
 if (config.runsInWidget) {
   Script.setWidget(widget)
 } else if (toggleId) {
-  // Came from a bubble tap — push an updated widget snapshot, then preview
   Script.setWidget(widget)
   if (family === "large") await widget.presentLarge()
   else if (family === "small") await widget.presentSmall()
