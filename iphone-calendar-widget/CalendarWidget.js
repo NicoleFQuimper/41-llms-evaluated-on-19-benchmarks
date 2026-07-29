@@ -351,14 +351,15 @@ function bubbleImage(done, accent) {
       ctx.setFillColor(Color.white())
       ctx.fillRect(new Rect(hx + px, hy + px, px, px))
     } else {
-      drawPixelHeart(ctx, hx, hy, px, T.bubbleEmpty, T.bubbleStroke)
+      // Hollow heart tinted baby blue (today) or purple (overdue)
+      drawPixelHeart(ctx, hx, hy, px, withAlpha(accent, 0.28), accent)
     }
   } else {
     const pad = 2
     const r = size - pad * 2
-    ctx.setFillColor(done ? accent : T.bubbleEmpty)
+    ctx.setFillColor(done ? accent : withAlpha(accent, 0.2))
     ctx.fillEllipse(new Rect(pad, pad, r, r))
-    ctx.setStrokeColor(done ? accent : T.bubbleStroke)
+    ctx.setStrokeColor(accent)
     ctx.setLineWidth(2)
     ctx.strokeEllipse(new Rect(pad, pad, r, r))
     if (done) {
