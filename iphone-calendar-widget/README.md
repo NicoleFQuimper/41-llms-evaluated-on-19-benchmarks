@@ -1,6 +1,8 @@
-# iPhone Calendar Widget
+# iPhone Sectograph Calendar Widget
 
-A Home Screen calendar widget for iPhone, built with [Scriptable](https://scriptable.app/). It shows today’s upcoming events (title, time, location) and opens the Calendar app when tapped.
+A Home Screen **24-hour sectograph** calendar widget for iPhone, built with [Scriptable](https://scriptable.app/).
+
+Today’s timed events appear as colored arcs on a circular 24h dial. A red hand marks the current time. Midnight is at the top; time runs clockwise.
 
 ## Install on your iPhone
 
@@ -8,21 +10,29 @@ A Home Screen calendar widget for iPhone, built with [Scriptable](https://script
 2. Open Scriptable → tap **+** → paste the contents of `CalendarWidget.js`.
 3. Name the script **Calendar Widget** and save.
 4. Long-press your Home Screen → tap **+** → search **Scriptable**.
-5. Pick a size (Small / Medium / Large) → **Add Widget**.
+5. Pick a size — **Medium** or **Large** recommended → **Add Widget**.
 6. Long-press the widget → **Edit Widget** → set **Script** to **Calendar Widget**.
 7. Allow **Calendar** access when iOS asks.
 
-## Sizes
+## Layout by size
 
-| Size   | Events shown |
-|--------|--------------|
-| Small  | Up to 3      |
-| Medium | Up to 5      |
-| Large  | Up to 8      |
+| Size   | What’s shown                                      |
+|--------|---------------------------------------------------|
+| Small  | 24h dial only                                     |
+| Medium | Dial + next few events                            |
+| Large  | Dial + date header + longer event list            |
+
+## How to read it
+
+- **Colored arcs** = calendar events (uses each calendar’s color when available)
+- **Red hand** = now
+- **Hour marks** every hour; labels every 3 hours (`00`, `03`, … `21`)
+- **Dimmer night band** on the ring for roughly 00:00–06:00 and 18:00–24:00
+- **Past portion** of the day is shaded on the track
+- Tap the widget to open the Calendar app
 
 ## Notes
 
-- Past events for today are hidden; all-day events stay at the top.
-- Tapping the widget opens the system Calendar app.
-- Refresh happens when iOS updates the widget (Scriptable does not run continuously).
-- To preview without adding a widget: open the script in Scriptable and tap the play button.
+- All-day events are omitted from the ring (they have no clock span).
+- iOS controls how often the widget refreshes.
+- Preview in Scriptable with the play button before adding it to the Home Screen.
