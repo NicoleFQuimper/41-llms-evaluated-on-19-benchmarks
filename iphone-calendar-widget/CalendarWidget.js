@@ -574,25 +574,17 @@ async function createWidget() {
 
   const now = new Date()
   const { start, end, timed } = await loadEvents(now)
-  const tasks = family === "small" ? [] : await loadTasks(now)
-  const timedTasks = tasks.filter(
+  const allTasks = await loadTasks(now)
+  const timedTasks = allTasks.filter(
     (t) => hasDueTime(t) && reminderDueDate(t) && sameDay(reminderDueDate(t), now)
   )
+  const tasks = family === "small" ? [] : allTasks
 
-  // —— SMALL: clock / events only ——
+  // —— SMALL: clock only (events + baby-blue timed-task hearts; no task list) ——
   if (family === "small") {
     widget.setPadding(6, 6, 6, 6)
-    // Still load timed tasks for baby-blue hearts on the clock
-    let clockTasks = timedTasks
-    if (clockTasks.length === 0) {
-      try {
-        clockTasks = (await loadTasks(now)).filter(
-          (t) => hasDueTime(t) && reminderDueDate(t) && sameDay(reminderDueDate(t), now)
-        )
-      } catch (_) {}
-    }
     const dialSize = 155
-    const img = widget.addImage(drawDial(dialSize, timed, start, end, now, clockTasks))
+    const img = widget.addImage(drawDial(dialSize, timed, start, end, now, timedTasks))
     img.imageSize = new Size(dialSize, dialSize)
     img.centerAlignImage()
     return widget
