@@ -1,43 +1,36 @@
 # Sectograph 24h Calendar Widget
 
-Circular **24-hour sectograph** for iPhone Home Screen (Scriptable), with two looks:
+Circular **24-hour sectograph** + tickable calendar **to-do list** for iPhone (Scriptable).
 
-| Theme | Vibe |
-|--------|------|
-| `kawaii` (default) | Magical-girl pastels, sparkles, **pixel heart per event** |
-| `classic` | Dark 24h dial |
+## Themes
 
-## Install / refresh
+| Theme | Task bubbles |
+|--------|----------------|
+| `kawaii` (default) | Pixel **hearts** you can tap to tick off |
+| `classic` | Normal **circle** checkboxes |
 
-1. Open **Scriptable** → create or replace script **Sectograph 24h**.
-2. Paste the **entire** `CalendarWidget.js` → Save.
-3. Tap **Play** — you should see a circular dial (kawaii: pink + hearts).
-4. Home Screen widget → **Edit Widget** → Script: **Sectograph 24h**.
+Set in the script: `const THEME = "kawaii"` or `"classic"`  
+Or **Edit Widget → Parameter**: `kawaii` / `classic`
 
-## Switch themes
+## Layouts
 
-**Option A — in the script** (top of file):
+| Size | Layout |
+|------|--------|
+| **Small** | Clock / sectograph only (no task list) |
+| **Medium** | **1 column of tasks on the left** + sectograph |
+| **Large** | Sectograph on the **left** + tasks on the **right in 2 columns** |
 
-```js
-const THEME = "kawaii"   // or "classic"
-```
+## Tick off tasks
 
-**Option B — per widget** (no code edit):
+1. Name the Scriptable script exactly **`Sectograph 24h`** (or change `SCRIPT_NAME` in the file to match).
+2. On Medium/Large, **tap a heart/circle bubble** next to a task.
+3. Scriptable opens briefly, toggles done, and the item moves to the bottom (muted). Tap again to undo.
+4. Completed tasks also dim on the dial.
 
-1. Long-press the widget → **Edit Widget**
-2. Set **Parameter** to `kawaii` or `classic`
+Done state is stored on-device for today only.
 
-## How to read it
+## Install
 
-| Element | Meaning |
-|--------|---------|
-| Pie wedges + outer arcs | Timed events |
-| Pixel hearts (kawaii) | One heart on each event arc + in the quest list |
-| Hand / heart tip | Now |
-| Center time | Current `HH:MM` |
-| `00` `03` … `21` | Hours (midnight at top, clockwise) |
-
-## Sizes
-
-- **Small** — dial only  
-- **Medium / Large** — dial + upcoming events (recommended)
+1. Scriptable → new script → paste all of `CalendarWidget.js` → name **Sectograph 24h** → Save.
+2. Home Screen → **+** → Scriptable → pick Small / Medium / Large → select that script.
+3. Allow Calendar access when asked.
