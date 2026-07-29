@@ -86,6 +86,7 @@ const themes = {
 }
 
 const T = themes[resolveTheme()]
+const BABY_BLUE = new Color("#A8D8FF") // timed-task hearts on dial + list
 
 function rad(deg) {
   return (deg * Math.PI) / 180
@@ -170,6 +171,24 @@ function reminderDueDate(reminder) {
   return null
 }
 
+/** True when the Reminder has a real clock time (not date-only). */
+function hasDueTime(reminder) {
+  try {
+    if (typeof reminder.dueDateIncludesTime === "boolean") {
+      return !!reminder.dueDate && reminder.dueDateIncludesTime
+    }
+  } catch (_) {}
+  const due = reminderDueDate(reminder)
+  if (!due) return false
+  return due.getHours() !== 0 || due.getMinutes() !== 0 || due.getSeconds() !== 0
+}
+
+function taskAccent(reminder, index) {
+  if (hasDueTime(reminder) && !reminder.isCompleted) return BABY_BLUE
+  if (hasDueTime(reminder) && reminder.isCompleted) return withAlpha(BABY_BLUE, 0.55)
+  return colorFor(reminder, index)
+}
+
 async function loadTasks(now) {
   const dayStart = new Date(now)
   dayStart.setHours(0, 0, 0, 0)
@@ -202,14 +221,14 @@ async function loadTasks(now) {
   })
 
   const tasks = open.concat(doneToday)
+  // Timed tasks first (baby blue), then untimed; completed sink to bottom
   tasks.sort((a, b) => {
     if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1
-    const da = reminderDueDate(a)
-    const db = reminderDueDate(b)
-    if (!da && !db) return (a.title || "").localeCompare(b.title || "")
-    if (!da) return 1
-    if (!db) return -1
-    return da - db
+    const ta = hasDueTime(a)
+    const tb = hasDueTime(b)
+    if (ta !== tb) return ta ? -1 : 1
+    if (ta && tb) return reminderDueDate(a) - reminderDueDate(b)
+    return (a.title || "").localeCompare(b.title || "")
   })
   return tasks
 }
@@ -349,8 +368,8 @@ function drawSparkle(ctx, x, y, size, color) {
   drawLine(ctx, x, y - size, x, y + size, color, 1.5)
 }
 
-/** Clock shows Calendar EVENTS only — never Reminders/tasks. */
-function drawDial(size, timed, dayStart, dayEnd, now) {
+/** Clock: Calendar event arcs + baby-blue hearts at timed-task start times. */
+function drawDial(size, timedEvents, dayStart, dayEnd, now, timedTasks) {
   const ctx = new DrawContext()
   ctx.size = new Size(size, size)
   ctx.opaque = false
@@ -375,7 +394,7 @@ function drawDial(size, timed, dayStart, dayEnd, now) {
   const nowA = ang(minsOf(now))
   fillWedge(ctx, cx, cy, R * 0.9, 0, nowA, T.past)
 
-  timed.forEach((event, i) => {
+  timedEvents.forEach((event, i) => {
     const s = event.startDate < dayStart ? dayStart : event.startDate
     const e = event.endDate > dayEnd ? dayEnd : event.endDate
     if (e <= s) return
@@ -385,6 +404,24 @@ function drawDial(size, timed, dayStart, dayEnd, now) {
     const c = colorFor(event, i)
     fillWedge(ctx, cx, cy, R * 0.88, a0, a1, withAlpha(c, T.kawaii ? 0.4 : 0.55))
     strokeArc(ctx, cx, cy, R * 0.93, size * 0.07, a0, a1, c)
+  })
+
+  // Timed reminders: single baby-blue pixel heart at start time only
+  ;(timedTasks || []).forEach((task) => {
+    const due = reminderDueDate(task)
+    if (!due || !sameDay(due, now)) return
+    const a = ang(minsOf(due))
+    const px = Math.max(2, Math.round(size * 0.015))
+    const hr = R * 0.93
+    const fill = task.isCompleted ? withAlpha(BABY_BLUE, 0.45) : BABY_BLUE
+    drawPixelHeart(
+      ctx,
+      cx + hr * sin(a) - (HEART_PX[0].length * px) / 2,
+      cy - hr * cos(a) - (HEART_PX.length * px) / 2,
+      px,
+      fill,
+      Color.white()
+    )
   })
 
   for (let h = 0; h < 24; h++) {
@@ -464,17 +501,22 @@ function drawDial(size, timed, dayStart, dayEnd, now) {
 function taskMeta(reminder) {
   const due = reminderDueDate(reminder)
   if (!due) return T.kawaii ? "open quest" : "no due date"
-  const hasTime =
-    due.getHours() !== 0 || due.getMinutes() !== 0 || due.getSeconds() !== 0
   const dayStart = new Date()
   dayStart.setHours(0, 0, 0, 0)
-  if (due < dayStart) return T.kawaii ? "overdue ✦" : "overdue"
-  return hasTime ? `due ${hhmm(due)}` : T.kawaii ? "due today ♡" : "due today"
+  if (due < dayStart) {
+    return hasDueTime(reminder)
+      ? `overdue · ${hhmm(due)}`
+      : T.kawaii
+        ? "overdue ✦"
+        : "overdue"
+  }
+  if (hasDueTime(reminder)) return `due ${hhmm(due)}`
+  return T.kawaii ? "due today ♡" : "due today"
 }
 
 function addTaskRow(parent, reminder, index) {
   const done = !!reminder.isCompleted
-  const accent = colorFor(reminder, index)
+  const accent = taskAccent(reminder, index)
 
   const row = parent.addStack()
   row.layoutHorizontally()
@@ -493,13 +535,13 @@ function addTaskRow(parent, reminder, index) {
 
   const title = col.addText(reminder.title || "Untitled")
   title.font = Font.semiboldSystemFont(11)
-  title.textColor = done ? T.done : T.title
+  title.textColor = done ? T.done : hasDueTime(reminder) ? new Color("#4A7AA8") : T.title
   title.lineLimit = 1
   title.minimumScaleFactor = 0.8
 
   const meta = col.addText(taskMeta(reminder))
   meta.font = Font.regularSystemFont(9)
-  meta.textColor = done ? T.done : T.muted
+  meta.textColor = done ? T.done : hasDueTime(reminder) ? new Color("#7AB0D4") : T.muted
   meta.lineLimit = 1
 
   return row
@@ -533,12 +575,24 @@ async function createWidget() {
   const now = new Date()
   const { start, end, timed } = await loadEvents(now)
   const tasks = family === "small" ? [] : await loadTasks(now)
+  const timedTasks = tasks.filter(
+    (t) => hasDueTime(t) && reminderDueDate(t) && sameDay(reminderDueDate(t), now)
+  )
 
   // —— SMALL: clock / events only ——
   if (family === "small") {
     widget.setPadding(6, 6, 6, 6)
+    // Still load timed tasks for baby-blue hearts on the clock
+    let clockTasks = timedTasks
+    if (clockTasks.length === 0) {
+      try {
+        clockTasks = (await loadTasks(now)).filter(
+          (t) => hasDueTime(t) && reminderDueDate(t) && sameDay(reminderDueDate(t), now)
+        )
+      } catch (_) {}
+    }
     const dialSize = 155
-    const img = widget.addImage(drawDial(dialSize, timed, start, end, now))
+    const img = widget.addImage(drawDial(dialSize, timed, start, end, now, clockTasks))
     img.imageSize = new Size(dialSize, dialSize)
     img.centerAlignImage()
     return widget
@@ -557,14 +611,14 @@ async function createWidget() {
   count.textColor = T.muted
   widget.addSpacer(6)
 
-  // —— LARGE: clock left, task hearts/bubbles in 2 columns ——
+  // —— LARGE: clock left, ONE task column right ——
   if (family === "large") {
     const dialSize = 220
     const body = widget.addStack()
     body.layoutHorizontally()
     body.topAlignContent()
 
-    const img = body.addImage(drawDial(dialSize, timed, start, end, now))
+    const img = body.addImage(drawDial(dialSize, timed, start, end, now, timedTasks))
     img.imageSize = new Size(dialSize, dialSize)
 
     body.addSpacer(10)
@@ -583,13 +637,7 @@ async function createWidget() {
       empty.font = Font.mediumSystemFont(12)
       empty.textColor = T.muted
     } else {
-      const cols = right.addStack()
-      cols.layoutHorizontally()
-      cols.topAlignContent()
-      const perCol = Math.ceil(Math.min(tasks.length, 12) / 2)
-      addTaskColumn(cols, tasks, 0, perCol)
-      cols.addSpacer(8)
-      addTaskColumn(cols, tasks, perCol, perCol)
+      addTaskColumn(right, tasks, 0, 12)
     }
     return widget
   }
@@ -611,7 +659,7 @@ async function createWidget() {
 
   body.addSpacer(8)
 
-  const img = body.addImage(drawDial(dialSize, timed, start, end, now))
+  const img = body.addImage(drawDial(dialSize, timed, start, end, now, timedTasks))
   img.imageSize = new Size(dialSize, dialSize)
 
   return widget

@@ -22,9 +22,16 @@ Events never appear in the task list. Tasks never appear on the clock.
 
 | Size | Layout |
 |------|--------|
-| **Small** | Clock only (events) — no tasks |
+| **Small** | Clock only (events + baby-blue hearts for timed tasks) — no task list |
 | **Medium** | **1 task column on the left** + clock |
-| **Large** | Clock left + tasks right in **2 columns** |
+| **Large** | Clock left + **1 task column** on the right |
+
+## Timed tasks
+
+Reminders with a **due time** (not just a date):
+- Appear as a **light baby-blue pixel heart** on the clock at that start time (duration ignored)
+- Sort to the **top** of the task list in the same baby blue
+- Date-only / no-time tasks sit below them
 
 ## Tick off tasks
 
