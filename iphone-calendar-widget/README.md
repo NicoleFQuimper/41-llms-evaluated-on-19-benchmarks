@@ -4,7 +4,7 @@ Circular **24-hour sectograph** for iPhone (Scriptable), with a clear split:
 
 | Kind | Source | Where it appears |
 |------|--------|------------------|
-| **Events** | Calendar | **Clock only** (colored arcs) |
+| **Events** | Calendar | **Clock only** — colored arcs with the **event name packed into the faded sector** (as large as fits); current event emphasized |
 | **Tasks** | Reminders | Side list as **hearts** (kawaii) or **bubbles** (classic) |
 
 Events never appear in the task list. Tasks never appear on the clock.

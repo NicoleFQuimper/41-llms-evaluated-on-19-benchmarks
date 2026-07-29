@@ -368,6 +368,108 @@ function drawSparkle(ctx, x, y, size, color) {
   drawLine(ctx, x, y - size, x, y + size, color, 1.5)
 }
 
+function wrapTitle(text, maxChars) {
+  const words = String(text || "Event").trim().split(/\s+/)
+  const lines = []
+  let line = ""
+  words.forEach((word) => {
+    const next = line ? `${line} ${word}` : word
+    if (next.length <= maxChars) {
+      line = next
+    } else {
+      if (line) lines.push(line)
+      if (word.length > maxChars) {
+        for (let i = 0; i < word.length; i += maxChars) {
+          const chunk = word.slice(i, i + maxChars)
+          if (i + maxChars < word.length) lines.push(chunk)
+          else line = chunk
+        }
+      } else {
+        line = word
+      }
+    }
+  })
+  if (line) lines.push(line)
+  return lines.length ? lines : [String(text || "Event")]
+}
+
+/**
+ * Pack the event title into the faded wedge — as large as will fit —
+ * so you can glance what’s now and what’s next.
+ */
+function drawEventLabelInSector(ctx, title, a0, a1, cx, cy, R, size, isCurrent) {
+  const span = a1 - a0
+  if (span < 5 && !isCurrent) return
+  if (span < 3) return
+
+  const mid = (a0 + a1) / 2
+  const innerR = R * 0.26
+  const outerR = R * 0.8
+  const midR = (innerR + outerR) / 2
+  const halfRad = (span * Math.PI) / 360
+  const chord = Math.max(12, 2 * midR * Math.sin(Math.min(halfRad, Math.PI / 2)))
+  let boxW = Math.min(size * 0.62, Math.max(chord * 0.92, size * 0.1))
+  let boxH = Math.min(size * 0.42, (outerR - innerR) * 0.95)
+  // Huge sectors: let the label claim more of the disc
+  if (span >= 60) {
+    boxW = Math.min(size * 0.7, midR * 1.35)
+    boxH = Math.min(size * 0.48, (outerR - innerR) * 1.05)
+  }
+
+  const lx = cx + midR * sin(mid) - boxW / 2
+  const ly = cy - midR * cos(mid) - boxH / 2
+
+  const maxFs = Math.floor(Math.min(boxH * 0.95, boxW * 0.55, size * 0.2))
+  const minFs = isCurrent ? 8 : 7
+  let bestFs = minFs
+  let bestLines = wrapTitle(title, 12)
+
+  for (let fs = maxFs; fs >= minFs; fs--) {
+    const charW = fs * 0.56
+    const maxChars = Math.max(2, Math.floor((boxW * 0.96) / charW))
+    const lines = wrapTitle(title, maxChars)
+    // Prefer filling height: allow up to what fits
+    const lineH = fs * 1.12
+    const totalH = lines.length * lineH
+    const longest = Math.max(...lines.map((l) => l.length)) * charW
+    if (totalH <= boxH * 0.98 && longest <= boxW * 0.98) {
+      bestFs = fs
+      bestLines = lines
+      break
+    }
+  }
+
+  // If short text leaves unused height, try fewer lines / bigger already found.
+  // Soft readable backdrop so letters pop on the faded wedge
+  const pad = 3
+  ctx.setFillColor(
+    isCurrent
+      ? new Color(T.kawaii ? "#FFFFFF" : "#000000", T.kawaii ? 0.35 : 0.35)
+      : new Color(T.kawaii ? "#FFFFFF" : "#000000", T.kawaii ? 0.22 : 0.28)
+  )
+  const blockH = Math.min(boxH, bestLines.length * bestFs * 1.12 + pad * 2)
+  const blockW = Math.min(
+    boxW,
+    Math.max(...bestLines.map((l) => l.length)) * bestFs * 0.56 + pad * 2
+  )
+  const bx = lx + (boxW - blockW) / 2
+  const by = ly + (boxH - blockH) / 2
+  ctx.fillRect(new Rect(bx, by, blockW, blockH))
+
+  ctx.setTextAlignedCenter()
+  ctx.setTextColor(isCurrent ? (T.kawaii ? T.title : Color.white()) : T.title)
+  ctx.setFont(Font.boldSystemFont(bestFs))
+
+  const lineH = bestFs * 1.12
+  const textTop = by + (blockH - bestLines.length * lineH) / 2
+  bestLines.forEach((line, i) => {
+    ctx.drawTextInRect(
+      line,
+      new Rect(bx, textTop + i * lineH, blockW, lineH)
+    )
+  })
+}
+
 /** Clock: Calendar event arcs + baby-blue hearts at timed-task start times. */
 function drawDial(size, timedEvents, dayStart, dayEnd, now, timedTasks) {
   const ctx = new DrawContext()
@@ -394,6 +496,7 @@ function drawDial(size, timedEvents, dayStart, dayEnd, now, timedTasks) {
   const nowA = ang(minsOf(now))
   fillWedge(ctx, cx, cy, R * 0.9, 0, nowA, T.past)
 
+  const sectorMeta = []
   timedEvents.forEach((event, i) => {
     const s = event.startDate < dayStart ? dayStart : event.startDate
     const e = event.endDate > dayEnd ? dayEnd : event.endDate
@@ -404,6 +507,13 @@ function drawDial(size, timedEvents, dayStart, dayEnd, now, timedTasks) {
     const c = colorFor(event, i)
     fillWedge(ctx, cx, cy, R * 0.88, a0, a1, withAlpha(c, T.kawaii ? 0.4 : 0.55))
     strokeArc(ctx, cx, cy, R * 0.93, size * 0.07, a0, a1, c)
+    const isCurrent = now >= event.startDate && now < event.endDate
+    sectorMeta.push({
+      title: event.title || "Event",
+      a0,
+      a1,
+      isCurrent,
+    })
   })
 
   // Timed reminders: single baby-blue pixel heart at start time only
@@ -448,6 +558,24 @@ function drawDial(size, timedEvents, dayStart, dayEnd, now, timedTasks) {
       )
     }
   }
+
+  // Event names inside faded wedges (current first / on top for quick glance)
+  sectorMeta
+    .slice()
+    .sort((a, b) => (a.isCurrent === b.isCurrent ? 0 : a.isCurrent ? 1 : -1))
+    .forEach((sec) => {
+      drawEventLabelInSector(
+        ctx,
+        sec.title,
+        sec.a0,
+        sec.a1,
+        cx,
+        cy,
+        R,
+        size,
+        sec.isCurrent
+      )
+    })
 
   if (T.kawaii) {
     ;[30, 100, 170, 240, 300].forEach((a, i) => {
