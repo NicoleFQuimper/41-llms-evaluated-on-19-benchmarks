@@ -1,38 +1,31 @@
-# iPhone Sectograph Calendar Widget
+# Sectograph 24h Calendar Widget
 
-A Home Screen **24-hour sectograph** calendar widget for iPhone, built with [Scriptable](https://scriptable.app/).
+Circular **24-hour sectograph** for iPhone Home Screen (Scriptable).
 
-Today’s timed events appear as colored arcs on a circular 24h dial. A red hand marks the current time. Midnight is at the top; time runs clockwise.
+If you still see a normal event *list* (titles + times with colored bars), you are still running the old script. Follow the replace steps below.
 
-## Install on your iPhone
+## Replace the old widget (important)
 
-1. Install **Scriptable** from the App Store (free).
-2. Open Scriptable → tap **+** → paste the contents of `CalendarWidget.js`.
-3. Name the script **Calendar Widget** and save.
-4. Long-press your Home Screen → tap **+** → search **Scriptable**.
-5. Pick a size — **Medium** or **Large** recommended → **Add Widget**.
-6. Long-press the widget → **Edit Widget** → set **Script** to **Calendar Widget**.
-7. Allow **Calendar** access when iOS asks.
+1. Open **Scriptable**.
+2. Delete the old “Calendar Widget” script (or clear it).
+3. Tap **+** → paste the **entire** contents of `CalendarWidget.js`.
+4. Name it exactly: **Sectograph 24h** → Save.
+5. Tap the **play** button. You should see a **circle clock** with a red “SECTOGRAPH” label — not a list.
+6. On the Home Screen: long-press your Scriptable widget → **Edit Widget** → set **Script** to **Sectograph 24h**.
 
-## Layout by size
-
-| Size   | What’s shown                                      |
-|--------|---------------------------------------------------|
-| Small  | 24h dial only                                     |
-| Medium | Dial + next few events                            |
-| Large  | Dial + date header + longer event list            |
+Or add a fresh widget: Home Screen → **+** → **Scriptable** → Medium → choose **Sectograph 24h**.
 
 ## How to read it
 
-- **Colored arcs** = calendar events (uses each calendar’s color when available)
-- **Red hand** = now
-- **Hour marks** every hour; labels every 3 hours (`00`, `03`, … `21`)
-- **Dimmer night band** on the ring for roughly 00:00–06:00 and 18:00–24:00
-- **Past portion** of the day is shaded on the track
-- Tap the widget to open the Calendar app
+| Element | Meaning |
+|--------|---------|
+| Pie wedges + outer arcs | Timed calendar events |
+| Red hand | Now |
+| Center time | Current clock (`HH:MM`) |
+| Labels `00` `03` … `21` | Hours (midnight at top, clockwise) |
+| Dim wedges | Night (approx. 00–06 and 18–24) |
 
-## Notes
+## Sizes
 
-- All-day events are omitted from the ring (they have no clock span).
-- iOS controls how often the widget refreshes.
-- Preview in Scriptable with the play button before adding it to the Home Screen.
+- **Small** — dial only  
+- **Medium / Large** — dial + upcoming events (recommended)
