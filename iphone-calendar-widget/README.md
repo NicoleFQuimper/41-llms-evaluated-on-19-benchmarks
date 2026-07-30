@@ -41,15 +41,24 @@ Reminders with a **due time** (not just a date):
 | Timed + overdue | **Cute purple** |
 | Completed | Muted / filled |
 
-Timed tasks also float on the dial rim as bubbles — a **heart** in kawaii, a
-plain **dot bubble** in classic.
+Timed tasks also float on the dial rim as bubbles — a **pixel heart** in
+kawaii, a plain **dot bubble** in classic.
 
 ## Event names on the dial
 
-- Placed **radially** inside their sector, upright and **left→right**
-- Drawn **on top** of wedges, ticks and the hand, on a frosted chip
-- Truncated at word boundaries; the **current** event is bold and shows its time range
-- Collision-aware: labels shift radius/angle to avoid each other and the hub
+- Rows stack along the sector's **mid-ray**, upright and **left→right**
+- Every row is measured against the wedge itself, so text **never spills
+  outside its own sector** or over the center hub
+- **Small type** by design so more of the title fits; whole words are
+  preferred, hyphenation is a last resort and `…` only when nothing else fits
+- Drawn **on top** of wedges, ticks and the hand, with a soft halo instead of
+  a background box
+
+## Magical-girl (kawaii) styling
+
+Pixel art throughout: pixel hearts for tasks and the rim bubbles, a pixel
+stepped clock hand with a pixel heart tip, blocky hour ticks, a pixel-block
+hub ring, and pixel sparkles on the rim. `classic` stays smooth and dark.
 
 ## Developing
 

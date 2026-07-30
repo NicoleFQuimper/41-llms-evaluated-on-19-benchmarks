@@ -302,29 +302,96 @@ function drawLine(ctx, x1, y1, x2, y2, color, width) {
   ctx.strokePath()
 }
 
-/** Task bubble: heart (kawaii) or circle checkbox (classic). */
+const HEART_PX = [
+  [0, 1, 1, 0, 1, 1, 0],
+  [1, 1, 1, 1, 1, 1, 1],
+  [1, 1, 1, 1, 1, 1, 1],
+  [0, 1, 1, 1, 1, 1, 0],
+  [0, 0, 1, 1, 1, 0, 0],
+  [0, 0, 0, 1, 0, 0, 0],
+]
+
+/** Pixel-art heart. `outline` draws a chunky border for the magical-girl look. */
+function drawPixelHeart(ctx, x, y, px, fill, outline) {
+  const rows = HEART_PX.length
+  const cols = HEART_PX[0].length
+  if (outline) {
+    ctx.setFillColor(outline)
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (!HEART_PX[r][c]) continue
+        ctx.fillRect(
+          new Rect(x + (c - 0.2) * px, y + (r - 0.2) * px, px * 1.4, px * 1.4)
+        )
+      }
+    }
+  }
+  ctx.setFillColor(fill)
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (!HEART_PX[r][c]) continue
+      ctx.fillRect(new Rect(x + c * px, y + r * px, px, px))
+    }
+  }
+}
+
+/** Hollow pixel heart: outline pixels only. */
+function drawPixelHeartOutline(ctx, x, y, px, color) {
+  const rows = HEART_PX.length
+  const cols = HEART_PX[0].length
+  const on = (r, c) =>
+    r >= 0 && r < rows && c >= 0 && c < cols ? HEART_PX[r][c] : 0
+  ctx.setFillColor(color)
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (!on(r, c)) continue
+      const edge =
+        !on(r - 1, c) || !on(r + 1, c) || !on(r, c - 1) || !on(r, c + 1)
+      if (edge) ctx.fillRect(new Rect(x + c * px, y + r * px, px, px))
+    }
+  }
+}
+
+function pixelHeartSize(px) {
+  return { w: HEART_PX[0].length * px, h: HEART_PX.length * px }
+}
+
+/** Chunky pixel-stepped line, for the magical-girl dial. */
+function drawPixelLine(ctx, x0, y0, x1, y1, px, color) {
+  const dx = x1 - x0
+  const dy = y1 - y0
+  const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / (px * 0.7)))
+  ctx.setFillColor(color)
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    const x = Math.round((x0 + dx * t) / px) * px
+    const y = Math.round((y0 + dy * t) / px) * px
+    ctx.fillRect(new Rect(x, y, px, px))
+  }
+}
+
+/** Task bubble: pixel heart (kawaii) or circle checkbox (classic). */
 function bubbleImage(done, accent) {
   const size = 26
   const ctx = new DrawContext()
   ctx.size = new Size(size, size)
   ctx.opaque = false
   ctx.respectScreenScale = true
-  const c = size / 2
 
   if (T.kawaii) {
-    ctx.setFillColor(withAlpha(accent, done ? 0.22 : 0.14))
-    ctx.fillEllipse(new Rect(1, 1, size - 2, size - 2))
+    const px = 2.8
+    const { w, h } = pixelHeartSize(px)
+    const hx = (size - w) / 2
+    const hy = (size - h) / 2
     if (done) {
-      ctx.setFillColor(accent)
-      ctx.addPath(heartPath(c, c, size * 0.62, size * 0.58))
-      ctx.fillPath()
-      ctx.setFillColor(new Color("#FFFFFF", 0.85))
-      ctx.fillEllipse(new Rect(c - size * 0.17, c - size * 0.2, size * 0.12, size * 0.12))
+      drawPixelHeart(ctx, hx, hy, px, accent, Color.white())
+      // Pixel glint
+      ctx.setFillColor(Color.white())
+      ctx.fillRect(new Rect(hx + px, hy + px, px, px))
     } else {
-      ctx.setStrokeColor(accent)
-      ctx.setLineWidth(2)
-      ctx.addPath(heartPath(c, c, size * 0.62, size * 0.58))
-      ctx.strokePath()
+      ctx.setFillColor(withAlpha(accent, 0.18))
+      ctx.fillRect(new Rect(hx, hy, w, h))
+      drawPixelHeartOutline(ctx, hx, hy, px, accent)
     }
   } else {
     const pad = 3
@@ -348,147 +415,159 @@ function bubbleImage(done, accent) {
   return ctx.getImage()
 }
 
-function drawSparkle(ctx, x, y, size, color) {
-  drawLine(ctx, x - size, y, x + size, y, color, 1.5)
-  drawLine(ctx, x, y - size, x, y + size, color, 1.5)
-}
-
-function roundedRectPath(x, y, w, h, r) {
-  const rr = Math.min(r, w / 2, h / 2)
-  const p = new Path()
-  p.move(new Point(x + rr, y))
-  p.addLine(new Point(x + w - rr, y))
-  p.addQuadCurve(new Point(x + w, y + rr), new Point(x + w, y))
-  p.addLine(new Point(x + w, y + h - rr))
-  p.addQuadCurve(new Point(x + w - rr, y + h), new Point(x + w, y + h))
-  p.addLine(new Point(x + rr, y + h))
-  p.addQuadCurve(new Point(x, y + h - rr), new Point(x, y + h))
-  p.addLine(new Point(x, y + rr))
-  p.addQuadCurve(new Point(x + rr, y), new Point(x, y))
-  p.closeSubpath()
-  return p
-}
-
-/** Heart glyph as a smooth vector shape (premium look, no pixel steps). */
-function heartPath(cx, cy, w, h) {
-  const p = new Path()
-  const top = cy - h * 0.28
-  p.move(new Point(cx, cy + h * 0.5))
-  p.addCurve(
-    new Point(cx - w * 0.5, top),
-    new Point(cx - w * 0.22, cy + h * 0.24),
-    new Point(cx - w * 0.5, cy + h * 0.06)
-  )
-  p.addCurve(
-    new Point(cx, cy - h * 0.06),
-    new Point(cx - w * 0.5, top - h * 0.34),
-    new Point(cx - w * 0.08, top - h * 0.3)
-  )
-  p.addCurve(
-    new Point(cx + w * 0.5, top),
-    new Point(cx + w * 0.08, top - h * 0.3),
-    new Point(cx + w * 0.5, top - h * 0.34)
-  )
-  p.addCurve(
-    new Point(cx, cy + h * 0.5),
-    new Point(cx + w * 0.5, cy + h * 0.06),
-    new Point(cx + w * 0.22, cy + h * 0.24)
-  )
-  p.closeSubpath()
-  return p
+/** Pixel sparkle: a plus made of blocks. */
+function drawSparkle(ctx, x, y, px, color) {
+  ctx.setFillColor(color)
+  ctx.fillRect(new Rect(x - px / 2, y - px * 1.5, px, px * 3))
+  ctx.fillRect(new Rect(x - px * 1.5, y - px / 2, px * 3, px))
 }
 
 /**
  * Floating task bubble on the sectograph rim:
- * heart glyph in kawaii, plain bubble in classic.
+ * pixel heart in kawaii, plain bubble in classic.
  */
 function drawRimTaskBubble(ctx, x, y, r, accent, dim) {
+  if (T.kawaii) {
+    const px = Math.max(1.4, r * 0.3)
+    const { w, h } = pixelHeartSize(px)
+    drawPixelHeart(
+      ctx,
+      x - w / 2,
+      y - h / 2,
+      px,
+      dim ? withAlpha(accent, 0.4) : accent,
+      new Color("#FFFFFF", dim ? 0.7 : 0.95)
+    )
+    if (!dim) {
+      ctx.setFillColor(new Color("#FFFFFF", 0.9))
+      ctx.fillRect(new Rect(x - w / 2 + px, y - h / 2 + px, px, px))
+    }
+    return
+  }
+
   ctx.setFillColor(withAlpha(accent, dim ? 0.14 : 0.24))
   ctx.fillEllipse(new Rect(x - r, y - r, r * 2, r * 2))
-  ctx.setFillColor(T.kawaii ? new Color("#FFFFFF", 0.94) : new Color("#0E131B", 0.94))
+  ctx.setFillColor(new Color("#0E131B", 0.94))
   ctx.fillEllipse(new Rect(x - r * 0.82, y - r * 0.82, r * 1.64, r * 1.64))
   ctx.setStrokeColor(withAlpha(accent, dim ? 0.5 : 0.95))
   ctx.setLineWidth(Math.max(1, r * 0.22))
   ctx.strokeEllipse(new Rect(x - r * 0.82, y - r * 0.82, r * 1.64, r * 1.64))
-
-  if (T.kawaii) {
-    ctx.setFillColor(dim ? withAlpha(accent, 0.5) : accent)
-    ctx.addPath(heartPath(x, y - r * 0.02, r * 1.0, r * 0.94))
-    ctx.fillPath()
-    ctx.setFillColor(new Color("#FFFFFF", 0.75))
-    ctx.fillEllipse(new Rect(x - r * 0.3, y - r * 0.34, r * 0.22, r * 0.22))
-  } else {
-    ctx.setFillColor(dim ? withAlpha(accent, 0.45) : accent)
-    ctx.fillEllipse(new Rect(x - r * 0.42, y - r * 0.42, r * 0.84, r * 0.84))
-  }
+  ctx.setFillColor(dim ? withAlpha(accent, 0.45) : accent)
+  ctx.fillEllipse(new Rect(x - r * 0.42, y - r * 0.42, r * 0.84, r * 0.84))
 }
 
 const CHAR_W = 0.55 // rough advance width per character, relative to font size
 
-/**
- * Flow a title through a wedge: lines run outward from the hub, each line
- * limited to the chord width available at its radius, so the text takes the
- * shape of the sector instead of a rectangle.
- */
-function rectHitsCircle(box, ccx, ccy, cr) {
-  const nx = Math.max(box.x, Math.min(ccx, box.x + box.w))
-  const ny = Math.max(box.y, Math.min(ccy, box.y + box.h))
-  const dx = ccx - nx
-  const dy = ccy - ny
-  return dx * dx + dy * dy < cr * cr
+/** Dial angle (degrees, 0 = 12 o'clock, clockwise) of a point. */
+function angleOfPoint(px, py, cx, cy) {
+  let a = (Math.atan2(px - cx, cy - py) * 180) / Math.PI
+  return a < 0 ? a + 360 : a
 }
 
-function layoutSectorText(title, fontSize, geo) {
-  const { innerR, outerR, halfRad, size, cx, cy, mid, hubR } = geo
-  const charW = fontSize * CHAR_W
-  const lineH = fontSize * 1.16
-  const words = String(title || "Event").trim().replace(/\s+/g, " ").split(" ")
-  // Follows the wedge, with a small allowance so short words still fit in
-  // narrow sectors, and a cap so nothing sprawls across the dial.
-  const widthAt = (r) =>
-    Math.min(size * 0.34, 2 * r * Math.sin(halfRad) * 0.92 + size * 0.055)
-  const boxAt = (r, w) => ({
-    x: cx + r * sin(mid) - w / 2,
-    y: cy - r * cos(mid) - lineH / 2,
-    w,
-    h: lineH,
-  })
+/** Is a point inside the wedge, clear of the hub and inside the dial? */
+function pointInSector(px, py, geo) {
+  const dx = px - geo.cx
+  const dy = py - geo.cy
+  const dist = Math.sqrt(dx * dx + dy * dy)
+  if (dist > geo.outerR || dist < geo.hubR) return false
+  const a = angleOfPoint(px, py, geo.cx, geo.cy)
+  const a0 = geo.a0
+  const a1 = geo.a1
+  return a1 <= 360 ? a >= a0 && a <= a1 : a >= a0 || a <= a1 - 360
+}
 
+/**
+ * Widest horizontal row that stays completely inside the wedge at this
+ * height. Each side is scanned separately, so rows in a diagonal wedge use
+ * all of the space available instead of staying centred on the mid-ray.
+ */
+function rowSpanInSector(anchorX, rowTop, rowH, geo) {
+  const okAt = (x) =>
+    pointInSector(x, rowTop, geo) && pointInSector(x, rowTop + rowH, geo)
+  if (!okAt(anchorX)) return null
+  const reach = (dir) => {
+    let lo = 0
+    let hi = geo.outerR * 2
+    for (let i = 0; i < 16; i++) {
+      const mid = (lo + hi) / 2
+      if (okAt(anchorX + dir * mid)) lo = mid
+      else hi = mid
+    }
+    return lo
+  }
+  const left = reach(-1)
+  const right = reach(1)
+  return { x: anchorX - left, w: left + right }
+}
+
+function wrapIntoRows(words, rows, fontSize) {
+  const charW = fontSize * CHAR_W
+  const queue = words.slice()
   const lines = []
-  let clipped = false
-  let r = innerR + lineH / 2
-  let i = 0
-  while (i < words.length && r + lineH / 2 <= outerR) {
-    const width = widthAt(r)
-    const box = boxAt(r, width)
-    if (rectHitsCircle(box, cx, cy, hubR)) {
-      r += lineH * 0.4
+  const widestChars = Math.floor(
+    Math.max(0, ...rows.map((row) => row.w)) / charW
+  )
+  let hyphens = 0
+  for (const row of rows) {
+    if (!queue.length) break
+    const maxChars = Math.floor(row.w / charW)
+    if (maxChars < 2) {
+      lines.push(null)
       continue
     }
-    const maxChars = Math.max(1, Math.floor(width / charW))
     let line = ""
-    while (i < words.length) {
-      const next = line ? `${line} ${words[i]}` : words[i]
-      if (next.length > maxChars) break
-      line = next
-      i++
-    }
-    if (!line) {
-      // The next word is wider than this ring: try further out where the
-      // wedge widens, and only clip it once we run out of room.
-      if (r + lineH * 1.5 <= outerR) {
-        r += lineH * 0.5
+    while (queue.length) {
+      const next = line ? `${line} ${queue[0]}` : queue[0]
+      if (next.length <= maxChars) {
+        line = next
+        queue.shift()
         continue
       }
-      line = `${words[i].slice(0, Math.max(1, maxChars - 1))}…`
-      i = words.length
-      clipped = true
+      // Only hyphenate a word that will not fit on any row of this block;
+      // otherwise leave the row empty and let a wider row take it.
+      if (!line && queue[0].length > widestChars) {
+        line = `${queue[0].slice(0, maxChars - 1)}-`
+        queue[0] = queue[0].slice(maxChars - 1)
+        hyphens++
+      }
+      break
     }
-    lines.push({ text: line, r, width })
-    r += lineH
+    lines.push(line || null)
   }
+  return { lines, remaining: queue, hyphens }
+}
 
-  return { lines, overflow: clipped || i < words.length, lineH, endR: r }
+/**
+ * Flow a title inside a wedge: rows stack top→bottom around the sector's
+ * mid-ray and every row is clipped to the width the wedge actually offers,
+ * so text never spills outside its own sector.
+ */
+function layoutSectorText(title, fontSize, anchorR, geo) {
+  const lineH = fontSize * 1.16
+  const words = String(title || "Event").trim().replace(/\s+/g, " ").split(" ")
+  const ax = geo.cx + anchorR * sin(geo.mid)
+  const ay = geo.cy - anchorR * cos(geo.mid)
+  const maxLines = Math.max(1, Math.min(6, Math.floor((geo.outerR * 1.4) / lineH)))
+
+  let result = null
+  for (let n = 1; n <= maxLines; n++) {
+    const rows = []
+    for (let i = 0; i < n; i++) {
+      const top = ay - (n * lineH) / 2 + i * lineH
+      const span = rowSpanInSector(ax, top, lineH, geo)
+      rows.push({ top, x: span ? span.x : ax, w: span ? span.w : 0 })
+    }
+    const { lines, remaining, hyphens } = wrapIntoRows(words, rows, fontSize)
+    const placed = lines
+      .map((text, i) =>
+        text ? { text, x: rows[i].x, y: rows[i].top, w: rows[i].w } : null
+      )
+      .filter(Boolean)
+    if (!placed.length) continue
+    result = { lines: placed, lineH, remaining: remaining.length, hyphens }
+    if (!remaining.length) return result
+  }
+  return result
 }
 
 /** Text with a soft halo so it stays readable without a background box. */
@@ -517,57 +596,60 @@ function drawHaloText(ctx, text, rect, font, color, haloColor) {
 }
 
 /**
- * Event name rendered inside its own sector: lines read outward from the
- * center (radial), each line upright and left→right, no chip or box.
+ * Event name rendered inside its own sector: small upright left→right rows
+ * stacked along the sector's mid-ray, every row clipped to the wedge.
  */
 function drawSectorTitle(ctx, sec, cx, cy, R, size, accent) {
-  const span = sec.a1 - sec.a0
-  const mid = (sec.a0 + sec.a1) / 2
-  const halfRad = Math.min(rad(span) / 2, Math.PI / 2)
-
-  const hubR = size * 0.155
+  const hubR = size * 0.155 + size * 0.012
   const geo = {
-    innerR: hubR + size * 0.015,
-    outerR: R * 0.9,
-    halfRad,
-    size,
     cx,
     cy,
-    mid,
-    hubR: hubR + size * 0.012,
+    mid: (sec.a0 + sec.a1) / 2,
+    a0: sec.a0,
+    a1: sec.a1,
+    hubR,
+    outerR: R * 0.9, // matches the painted wedge radius
+    size,
   }
-  if (geo.outerR <= geo.innerR) return
+  if (geo.outerR <= geo.hubR) return
 
-  const maxFs = Math.min(sec.isCurrent ? 14 : 12, Math.round(size * 0.062))
-  // The event happening now stays large enough to read at a glance
-  const minFs = sec.isCurrent
-    ? Math.max(8, size * 0.042)
-    : Math.max(6, size * 0.03)
+  // Small type so more of the title fits inside the wedge
+  const maxFs = Math.min(sec.isCurrent ? 10 : 9, Math.round(size * 0.05))
+  const minFs = Math.max(5, size * 0.025)
+  const anchors = [0.68, 0.78, 0.58, 0.88, 0.48].map((f) => R * f)
 
-  // Largest font whose lines all fit inside the wedge; if the title never
-  // fits, fall back to the attempt that shows the most of it.
-  let best = null
-  let bestChars = -1
-  for (let fs = maxFs; fs >= minFs; fs -= 0.5) {
-    const attempt = layoutSectorText(sec.title, fs, geo)
-    if (!attempt.lines.length) continue
-    if (!attempt.overflow) {
-      best = { fs, ...attempt }
-      break
+  let fallback = null
+  let fallbackScore = -Infinity
+  const search = (accept) => {
+    for (let fs = maxFs; fs >= minFs; fs -= 0.5) {
+      for (const anchorR of anchors) {
+        if (anchorR <= geo.hubR || anchorR >= geo.outerR) continue
+        const attempt = layoutSectorText(sec.title, fs, anchorR, geo)
+        if (!attempt) continue
+        if (accept(attempt)) return { fs, ...attempt }
+        const chars = attempt.lines.reduce((n, l) => n + l.text.length, 0)
+        const score = chars - attempt.hyphens * 4 - attempt.remaining * 3
+        if (score > fallbackScore) {
+          fallbackScore = score
+          fallback = { fs, ...attempt }
+        }
+      }
     }
-    const chars = attempt.lines.reduce((n, l) => n + l.text.length, 0)
-    if (chars > bestChars) {
-      bestChars = chars
-      best = { fs, ...attempt }
-    }
+    return null
   }
+
+  // Prefer whole words; only accept hyphenation when nothing else fits
+  const best =
+    search((a) => !a.remaining && !a.hyphens) ||
+    search((a) => !a.remaining) ||
+    fallback
   if (!best || !best.lines.length) return
-  if (best.overflow) {
+  if (best.remaining) {
     const last = best.lines[best.lines.length - 1]
-    last.text = `${last.text.replace(/[\s…]+$/, "")}…`
+    last.text = `${last.text.replace(/[\s\-…]+$/, "")}…`
   }
 
-  const halo = T.kawaii ? new Color("#FFFFFF", 0.9) : new Color("#05070B", 0.9)
+  const halo = T.kawaii ? new Color("#FFFFFF", 0.92) : new Color("#05070B", 0.92)
   const titleFont = sec.isCurrent
     ? Font.boldSystemFont(best.fs)
     : Font.semiboldSystemFont(best.fs)
@@ -577,40 +659,12 @@ function drawSectorTitle(ctx, sec, cx, cy, R, size, accent) {
     drawHaloText(
       ctx,
       line.text,
-      new Rect(
-        cx + line.r * sin(mid) - line.width / 2,
-        cy - line.r * cos(mid) - best.lineH / 2,
-        line.width,
-        best.lineH
-      ),
+      new Rect(line.x, line.y, line.w, best.lineH),
       titleFont,
       T.title,
       halo
     )
   })
-
-  // Time range trailing the title, still inside the wedge
-  const timeFs = Math.max(6, best.fs * 0.72)
-  const timeR = best.endR + timeFs * 0.2
-  if (timeR + timeFs * 0.7 > geo.outerR) return
-  const timeW = Math.min(size * 0.34, 2 * timeR * Math.sin(halfRad) * 0.92 + size * 0.055)
-  const timeText = `${hhmm(sec.start)}–${hhmm(sec.end)}`
-  if (timeText.length * timeFs * CHAR_W > timeW) return
-  const timeFont = Font.mediumSystemFont(timeFs)
-  timeFont.__size = timeFs
-  drawHaloText(
-    ctx,
-    timeText,
-    new Rect(
-      cx + timeR * sin(mid) - timeW / 2,
-      cy - timeR * cos(mid) - timeFs * 0.7,
-      timeW,
-      timeFs * 1.4
-    ),
-    timeFont,
-    T.kawaii ? withAlpha(accent, 1) : withAlpha(T.label, 1),
-    halo
-  )
 }
 
 /** Clock: event sectors with radial labels + heart bubbles on the rim. */
@@ -700,18 +754,29 @@ function drawDial(size, timedEvents, dayStart, dayEnd, now, dialTasks) {
   })
 
   // Hour ticks + labels
+  const tickPx = Math.max(1.6, size * 0.014)
   for (let h = 0; h < 24; h++) {
     const a = ang(h * 60)
     const major = h % 3 === 0
-    drawLine(
-      ctx,
-      cx + R * (major ? 0.93 : 0.955) * sin(a),
-      cy - R * (major ? 0.93 : 0.955) * cos(a),
-      cx + R * 0.99 * sin(a),
-      cy - R * 0.99 * cos(a),
-      withAlpha(T.label, major ? 0.95 : 0.5),
-      major ? 2 : 1
-    )
+    if (T.kawaii) {
+      // Chunky pixel blocks instead of hairlines
+      const tr = R * (major ? 0.945 : 0.96)
+      const bs = major ? tickPx * 1.6 : tickPx
+      ctx.setFillColor(withAlpha(T.label, major ? 0.95 : 0.55))
+      ctx.fillRect(
+        new Rect(cx + tr * sin(a) - bs / 2, cy - tr * cos(a) - bs / 2, bs, bs)
+      )
+    } else {
+      drawLine(
+        ctx,
+        cx + R * (major ? 0.93 : 0.955) * sin(a),
+        cy - R * (major ? 0.93 : 0.955) * cos(a),
+        cx + R * 0.99 * sin(a),
+        cy - R * 0.99 * cos(a),
+        withAlpha(T.label, major ? 0.95 : 0.5),
+        major ? 2 : 1
+      )
+    }
     if (major) {
       const fs = Math.max(8, Math.round(size * 0.045))
       const lr = R * 0.86
@@ -728,17 +793,39 @@ function drawDial(size, timedEvents, dayStart, dayEnd, now, dialTasks) {
   if (T.kawaii) {
     ;[42, 128, 214, 318].forEach((a, i) => {
       const colors = [new Color("#FF9FCB"), new Color("#C9B6FD"), new Color("#A8D8FF")]
-      drawSparkle(ctx, cx + R * 0.2 * sin(a), cy - R * 0.2 * cos(a), size * 0.016, colors[i % 3])
+      drawSparkle(
+        ctx,
+        cx + R * 0.985 * sin(a),
+        cy - R * 0.985 * cos(a),
+        Math.max(1.4, size * 0.012),
+        colors[i % 3]
+      )
     })
   }
 
   // Now hand
   const tipX = cx + R * 0.96 * sin(nowA)
   const tipY = cy - R * 0.96 * cos(nowA)
-  drawLine(ctx, cx, cy, tipX, tipY, T.kawaii ? Color.white() : new Color("#000000", 0.6), 5)
-  drawLine(ctx, cx, cy, tipX, tipY, T.hand, 2.4)
-  ctx.setFillColor(T.hand)
-  ctx.fillEllipse(new Rect(tipX - 3, tipY - 3, 6, 6))
+  if (T.kawaii) {
+    const hpx = Math.max(1.8, size * 0.016)
+    drawPixelLine(ctx, cx, cy, tipX, tipY, hpx, Color.white())
+    drawPixelLine(ctx, cx, cy, tipX, tipY, hpx * 0.7, T.hand)
+    const heartPx = Math.max(1.4, size * 0.011)
+    const hs = pixelHeartSize(heartPx)
+    drawPixelHeart(
+      ctx,
+      tipX - hs.w / 2,
+      tipY - hs.h / 2,
+      heartPx,
+      T.hand,
+      Color.white()
+    )
+  } else {
+    drawLine(ctx, cx, cy, tipX, tipY, new Color("#000000", 0.6), 5)
+    drawLine(ctx, cx, cy, tipX, tipY, T.hand, 2.4)
+    ctx.setFillColor(T.hand)
+    ctx.fillEllipse(new Rect(tipX - 3, tipY - 3, 6, 6))
+  }
 
   // Center hub
   const hubR = size * 0.155
@@ -746,9 +833,20 @@ function drawDial(size, timedEvents, dayStart, dayEnd, now, dialTasks) {
   ctx.fillEllipse(new Rect(cx - hubR - 1.5, cy - hubR + 1, (hubR + 1.5) * 2, (hubR + 1.5) * 2))
   ctx.setFillColor(T.hubFill)
   ctx.fillEllipse(new Rect(cx - hubR, cy - hubR, hubR * 2, hubR * 2))
-  ctx.setStrokeColor(T.kawaii ? new Color("#FF8FBF", 0.85) : new Color("#FFFFFF", 0.18))
-  ctx.setLineWidth(2)
-  ctx.strokeEllipse(new Rect(cx - hubR, cy - hubR, hubR * 2, hubR * 2))
+  if (T.kawaii) {
+    // Pixel-block ring around the hub
+    const bpx = Math.max(1.8, size * 0.015)
+    ctx.setFillColor(new Color("#FF8FBF", 0.9))
+    for (let a = 0; a < 360; a += 7.5) {
+      ctx.fillRect(
+        new Rect(cx + hubR * sin(a) - bpx / 2, cy - hubR * cos(a) - bpx / 2, bpx, bpx)
+      )
+    }
+  } else {
+    ctx.setStrokeColor(new Color("#FFFFFF", 0.18))
+    ctx.setLineWidth(2)
+    ctx.strokeEllipse(new Rect(cx - hubR, cy - hubR, hubR * 2, hubR * 2))
+  }
 
   const tSize = Math.round(size * 0.1)
   ctx.setFont(Font.boldSystemFont(tSize))
