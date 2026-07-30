@@ -189,13 +189,23 @@ class WidgetStack {
     return s
   }
   addText(t) {
-    const o = { text: t }
+    const o = {
+      text: t,
+      centerAlignText() {},
+      leftAlignText() {},
+      rightAlignText() {},
+    }
     this.children.push(o)
     return o
   }
   addImage(img) {
     images.push(img)
-    return { centerAlignImage() {}, leftAlignImage() {} }
+    return {
+      centerAlignImage() {},
+      leftAlignImage() {},
+      applyFittingContentMode() {},
+      applyFillingContentMode() {},
+    }
   }
   addSpacer() {}
   layoutHorizontally() {}
@@ -271,7 +281,11 @@ class Reminder {
   save() {}
 }
 
-const Device = { screenSize: () => new Size(393, 852) }
+const [screenW, screenH] = (process.env.SCREEN || "393x852").split("x").map(Number)
+const Device = {
+  screenSize: () => new Size(screenW, screenH),
+  isPad: () => Math.min(screenW, screenH) >= 700,
+}
 const config = { widgetFamily: process.env.FAMILY || "large", runsInWidget: false }
 const args = { widgetParameter: process.env.THEME || "kawaii", queryParameters: {} }
 const Script = { name: () => "Sectograph 24h", setWidget() {}, complete() {} }

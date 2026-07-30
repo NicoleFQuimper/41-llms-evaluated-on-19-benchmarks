@@ -22,14 +22,23 @@ Events never appear in the task list. Tasks never appear on the clock.
 
 | Size | Layout |
 |------|--------|
-| **Small** (square) | **Clock only**, filling the widget |
-| **Large** (square) | **Clock only**, filling the widget — a huge sectograph |
+| **Small** (square) | Title + **clock only**, filling the widget |
+| **Large** (square) | Title + **clock only** — a huge sectograph |
 | **Medium** (rectangle) | Square clock filling the height + **1 task column** beside it |
 
-Tasks appear on the **medium** widget only, so both square sizes can give the
-whole widget to the dial. The dial is sized from the real widget dimensions
-for the current device (see `WIDGET_BOXES`), so it fills the space without
-being clipped.
+Tasks appear on the **medium** widget only, so both square sizes can give
+nearly the whole widget to the dial. The title (`✦ MAGICAL SECTOGRAPH ✦` /
+`SECTOGRAPH`) sits at the top of the square sizes and above the task column on
+medium.
+
+### iPhone and iPad
+
+iPad widgets are much smaller relative to the screen than iPhone ones, so the
+dial is sized from a per-device table of real widget dimensions
+(`WIDGET_BOXES`, keyed by screen size) rather than a fraction of the screen.
+Unlisted iPads fall back to the 11-inch sizes, and every dial also uses
+`applyFittingContentMode()` so an imperfect guess scales down instead of
+overflowing the widget.
 
 ## Timed tasks
 

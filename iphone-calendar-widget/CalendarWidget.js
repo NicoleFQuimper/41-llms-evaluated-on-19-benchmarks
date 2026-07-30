@@ -132,8 +132,11 @@ function colorFor(item, i) {
  * Home Screen widget dimensions in points, per screen size. Needed so the
  * dial can fill the widget exactly instead of guessing and getting clipped.
  * Keys are "screenWidth x screenHeight" in portrait points.
+ * iPad widgets are much smaller relative to the screen than iPhone ones, so
+ * they need their own entries rather than a scaled guess.
  */
 const WIDGET_BOXES = {
+  // iPhone
   "320x568": { small: 141, medium: [291, 141], large: [291, 299] },
   "375x667": { small: 148, medium: [322, 148], large: [322, 324] },
   "375x812": { small: 155, medium: [329, 155], large: [329, 345] },
@@ -145,26 +148,45 @@ const WIDGET_BOXES = {
   "428x926": { small: 170, medium: [364, 170], large: [364, 382] },
   "430x932": { small: 170, medium: [364, 170], large: [364, 382] },
   "440x956": { small: 170, medium: [364, 170], large: [364, 382] },
+  // iPad — large is square here, not tall
+  "744x1133": { small: 141, medium: [305, 141], large: [305, 305] },
+  "768x1024": { small: 141, medium: [305, 141], large: [305, 305] },
+  "810x1080": { small: 146, medium: [320, 146], large: [320, 320] },
+  "820x1180": { small: 155, medium: [342, 155], large: [342, 342] },
+  "834x1112": { small: 150, medium: [327, 150], large: [327, 327] },
+  "834x1194": { small: 155, medium: [342, 155], large: [342, 342] },
+  "954x1373": { small: 162, medium: [350, 162], large: [350, 350] },
+  "970x1389": { small: 162, medium: [350, 162], large: [350, 350] },
+  "1024x1366": { small: 170, medium: [378, 170], large: [378, 378] },
+  "1192x1590": { small: 188, medium: [412, 188], large: [412, 412] },
 }
 
 function widgetBox(fam) {
   let sw = 393
   let sh = 852
+  let isPad = false
   try {
     const screen = Device.screenSize()
     sw = Math.round(Math.min(screen.width, screen.height))
     sh = Math.round(Math.max(screen.width, screen.height))
   } catch (_) {}
+  try {
+    isPad = Device.isPad()
+  } catch (_) {
+    isPad = sw >= 700
+  }
 
   const entry =
     WIDGET_BOXES[`${sw}x${sh}`] ||
-    // Unknown device: scale from the screen width, which tracks widget size
-    // closely enough on every layout Apple has shipped so far.
-    {
-      small: sw * 0.4,
-      medium: [sw * 0.865, sw * 0.4],
-      large: [sw * 0.865, sw * 0.9],
-    }
+    (isPad
+      ? // Unlisted iPad: widget sizes barely move across models, so the
+        // 11-inch numbers are a safe default rather than scaling by screen.
+        { small: 155, medium: [342, 155], large: [342, 342] }
+      : {
+          small: sw * 0.4,
+          medium: [sw * 0.865, sw * 0.4],
+          large: [sw * 0.865, sw * 0.9],
+        })
 
   const value = entry[fam] || entry.medium
   const [w, h] = Array.isArray(value) ? value : [value, value]
@@ -900,13 +922,25 @@ async function createWidget() {
   const box = widgetBox(family)
 
   // —— SQUARE (small + large): nothing but the clock, as big as it fits ——
-  if (family !== "medium") {
-    widget.setPadding(0, 0, 0, 0)
-    const dialSize = Math.min(box.w, box.h)
+  // Wide families (medium, and iPad's extra large) keep the task column.
+  const isWide = family === "medium" || family === "extraLarge"
+  if (!isWide) {
+    const padTop = 5
+    widget.setPadding(padTop, 2, 2, 2)
+    const brandFs = family === "small" ? 8.5 : 11
+    const brand = widget.addText(T.brandText)
+    brand.font = Font.boldSystemFont(brandFs)
+    brand.textColor = T.brand
+    brand.lineLimit = 1
+    brand.minimumScaleFactor = 0.6
+    brand.centerAlignText()
+
+    const dialSize = Math.min(box.w - 4, box.h - padTop - brandFs * 1.5 - 4)
     widget.addSpacer()
     const img = widget.addImage(drawDial(dialSize, timed, start, end, now, timedTasks))
     img.imageSize = new Size(dialSize, dialSize)
     img.centerAlignImage()
+    img.applyFittingContentMode()
     widget.addSpacer()
     return widget
   }
@@ -922,6 +956,13 @@ async function createWidget() {
 
   const left = body.addStack()
   left.layoutVertically()
+
+  const brand = left.addText(T.brandText)
+  brand.font = Font.boldSystemFont(T.kawaii ? 9.5 : 10)
+  brand.textColor = T.brand
+  brand.lineLimit = 1
+  brand.minimumScaleFactor = 0.7
+  left.addSpacer(4)
 
   const head = left.addStack()
   head.layoutHorizontally()
@@ -943,6 +984,7 @@ async function createWidget() {
 
   const img = body.addImage(drawDial(dialSize, timed, start, end, now, timedTasks))
   img.imageSize = new Size(dialSize, dialSize)
+  img.applyFittingContentMode()
 
   return widget
 }
