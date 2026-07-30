@@ -56,9 +56,10 @@ kawaii, a plain **dot bubble** in classic.
 
 ## Magical-girl (kawaii) styling
 
-Pixel art throughout: pixel hearts for tasks and the rim bubbles, a pixel
-stepped clock hand with a pixel heart tip, blocky hour ticks, a pixel-block
-hub ring, and pixel sparkles on the rim. `classic` stays smooth and dark.
+Pixel hearts for the task bubbles and for the timed-task markers on the dial,
+a pixel heart on the tip of the clock hand, sparkles across the face, a blush
+halo around the dial and a `♡ 24H` tag under the time. `classic` stays smooth
+and dark with circle checkboxes.
 
 ## Developing
 
