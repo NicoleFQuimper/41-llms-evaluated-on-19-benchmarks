@@ -25,61 +25,53 @@ function resolveTheme() {
 
 const themes = {
   classic: {
-    bg: new Color("#0A0C10"),
-    dial: new Color("#141820"),
-    track: new Color("#252B36"),
-    past: new Color("#1C2430"),
-    night: new Color("#0D1118", 0.85),
-    hand: new Color("#FF3B30"),
-    hub: new Color("#FFFFFF"),
-    label: new Color("#9AA3B2"),
-    title: new Color("#F4F6F8"),
-    muted: new Color("#7E8796"),
-    brand: new Color("#FF3B30"),
-    done: new Color("#4B5563"),
-    bubbleEmpty: new Color("#3A4555"),
-    bubbleStroke: new Color("#8B95A5"),
-    brandText: "SECTOGRAPH",
+    bg: new Color("#070A0F"),
+    dial: new Color("#121722"),
+    track: new Color("#2B3444"),
+    past: new Color("#0C111A", 0.75),
+    night: new Color("#080B12", 0.8),
+    hand: new Color("#FF4D5E"),
+    label: new Color("#A9B3C4"),
+    title: new Color("#F7F9FC"),
+    muted: new Color("#8B95A8"),
+    brand: new Color("#E7EAF0"),
+    done: new Color("#5A6579"),
+    brandText: "SECTOGRAPH · 24H",
     freeText: "No tasks left",
-    centerTag: "24H",
-    hubFill: new Color("#0A0C10", 0.92),
+    hubFill: new Color("#0B0F16", 0.95),
     palette: [
-      new Color("#3B82F6"),
-      new Color("#22C55E"),
-      new Color("#EAB308"),
-      new Color("#A855F7"),
-      new Color("#F43F5E"),
-      new Color("#06B6D4"),
+      new Color("#5B9DF9"),
+      new Color("#38D39F"),
+      new Color("#F2C14E"),
+      new Color("#B683F7"),
+      new Color("#FF6B81"),
+      new Color("#4FD1E0"),
     ],
     kawaii: false,
   },
   kawaii: {
-    bg: new Color("#FFF0F7"),
-    dial: new Color("#FFE4F2"),
-    track: new Color("#F9C2E0"),
-    past: new Color("#F3D0E8", 0.65),
-    night: new Color("#E8D9FF", 0.55),
+    bg: new Color("#FFF3F9"),
+    dial: new Color("#FFE7F4"),
+    track: new Color("#FBC9E4"),
+    past: new Color("#F6D8EC", 0.6),
+    night: new Color("#EADFFF", 0.5),
     hand: new Color("#FF4D8D"),
-    hub: new Color("#FFF9FC"),
-    label: new Color("#C45B8C"),
-    title: new Color("#6B2D5B"),
-    muted: new Color("#B07A9A"),
+    label: new Color("#BF5C8C"),
+    title: new Color("#5E2750"),
+    muted: new Color("#AC7896"),
     brand: new Color("#FF4D8D"),
-    done: new Color("#D4A5BE"),
-    bubbleEmpty: new Color("#FFD6EA"),
-    bubbleStroke: new Color("#FF8FBF"),
+    done: new Color("#D9A9C2"),
     brandText: "✦ MAGICAL SECTOGRAPH ✦",
     freeText: "all clear, starlight ♡",
-    centerTag: "♡ 24H",
-    hubFill: new Color("#FFF7FB", 0.95),
+    hubFill: new Color("#FFFBFD", 0.96),
     palette: [
-      new Color("#FF6BAF"),
-      new Color("#C084FC"),
-      new Color("#7DD3FC"),
-      new Color("#F9A8D4"),
-      new Color("#A78BFA"),
-      new Color("#FB7185"),
-      new Color("#86EFAC"),
+      new Color("#FF7AB8"),
+      new Color("#C69BFF"),
+      new Color("#8FD3FF"),
+      new Color("#FFA8D4"),
+      new Color("#B39CFB"),
+      new Color("#FF95A8"),
+      new Color("#9BE7C4"),
     ],
     kawaii: true,
   },
@@ -310,74 +302,46 @@ function drawLine(ctx, x1, y1, x2, y2, color, width) {
   ctx.strokePath()
 }
 
-const HEART_PX = [
-  [0, 1, 1, 0, 1, 1, 0],
-  [1, 1, 1, 1, 1, 1, 1],
-  [1, 1, 1, 1, 1, 1, 1],
-  [0, 1, 1, 1, 1, 1, 0],
-  [0, 0, 1, 1, 1, 0, 0],
-  [0, 0, 0, 1, 0, 0, 0],
-]
-
-function drawPixelHeart(ctx, x, y, pixel, fill, outline) {
-  const rows = HEART_PX.length
-  const cols = HEART_PX[0].length
-  if (outline) {
-    ctx.setFillColor(outline)
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        if (!HEART_PX[r][c]) continue
-        ctx.fillRect(
-          new Rect(x + (c - 0.15) * pixel, y + (r - 0.15) * pixel, pixel * 1.3, pixel * 1.3)
-        )
-      }
-    }
-  }
-  ctx.setFillColor(fill)
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      if (!HEART_PX[r][c]) continue
-      ctx.fillRect(new Rect(x + c * pixel, y + r * pixel, pixel, pixel))
-    }
-  }
-}
-
 /** Task bubble: heart (kawaii) or circle checkbox (classic). */
 function bubbleImage(done, accent) {
-  const size = 22
+  const size = 26
   const ctx = new DrawContext()
   ctx.size = new Size(size, size)
   ctx.opaque = false
   ctx.respectScreenScale = true
+  const c = size / 2
 
   if (T.kawaii) {
-    const px = 2.4
-    const hx = (size - HEART_PX[0].length * px) / 2
-    const hy = (size - HEART_PX.length * px) / 2
+    ctx.setFillColor(withAlpha(accent, done ? 0.22 : 0.14))
+    ctx.fillEllipse(new Rect(1, 1, size - 2, size - 2))
     if (done) {
-      drawPixelHeart(ctx, hx, hy, px, accent, Color.white())
-      ctx.setFillColor(Color.white())
-      ctx.fillRect(new Rect(hx + px, hy + px, px, px))
+      ctx.setFillColor(accent)
+      ctx.addPath(heartPath(c, c, size * 0.62, size * 0.58))
+      ctx.fillPath()
+      ctx.setFillColor(new Color("#FFFFFF", 0.85))
+      ctx.fillEllipse(new Rect(c - size * 0.17, c - size * 0.2, size * 0.12, size * 0.12))
     } else {
-      // Hollow heart tinted baby blue (today) or purple (overdue)
-      drawPixelHeart(ctx, hx, hy, px, withAlpha(accent, 0.28), accent)
+      ctx.setStrokeColor(accent)
+      ctx.setLineWidth(2)
+      ctx.addPath(heartPath(c, c, size * 0.62, size * 0.58))
+      ctx.strokePath()
     }
   } else {
-    const pad = 2
+    const pad = 3
     const r = size - pad * 2
-    ctx.setFillColor(done ? accent : withAlpha(accent, 0.2))
+    ctx.setFillColor(done ? accent : withAlpha(accent, 0.14))
     ctx.fillEllipse(new Rect(pad, pad, r, r))
-    ctx.setStrokeColor(accent)
-    ctx.setLineWidth(2)
+    ctx.setStrokeColor(withAlpha(accent, done ? 1 : 0.85))
+    ctx.setLineWidth(1.8)
     ctx.strokeEllipse(new Rect(pad, pad, r, r))
     if (done) {
       const p = new Path()
-      p.move(new Point(6.5, 11))
-      p.addLine(new Point(9.5, 14.5))
-      p.addLine(new Point(15.5, 7.5))
+      p.move(new Point(size * 0.31, size * 0.51))
+      p.addLine(new Point(size * 0.44, size * 0.65))
+      p.addLine(new Point(size * 0.7, size * 0.36))
       ctx.addPath(p)
       ctx.setStrokeColor(Color.white())
-      ctx.setLineWidth(2)
+      ctx.setLineWidth(2.2)
       ctx.strokePath()
     }
   }
@@ -389,117 +353,312 @@ function drawSparkle(ctx, x, y, size, color) {
   drawLine(ctx, x, y - size, x, y + size, color, 1.5)
 }
 
-/**
- * Horizontal left→right event title, sized to the sector.
- * Drawn last so it sits on top of all dial art.
- */
-function wrapTitleLines(text, maxChars) {
-  const words = String(text || "Event").trim().split(/\s+/)
-  const lines = []
-  let line = ""
-  words.forEach((word) => {
-    const next = line ? `${line} ${word}` : word
-    if (next.length <= maxChars) {
-      line = next
-    } else {
-      if (line) lines.push(line)
-      if (word.length > maxChars) {
-        for (let i = 0; i < word.length; i += maxChars) {
-          const chunk = word.slice(i, i + maxChars)
-          if (i + maxChars < word.length) lines.push(chunk)
-          else line = chunk
-        }
-      } else {
-        line = word
-      }
-    }
-  })
-  if (line) lines.push(line)
-  return lines.length ? lines : ["Event"]
+function roundedRectPath(x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2)
+  const p = new Path()
+  p.move(new Point(x + rr, y))
+  p.addLine(new Point(x + w - rr, y))
+  p.addQuadCurve(new Point(x + w, y + rr), new Point(x + w, y))
+  p.addLine(new Point(x + w, y + h - rr))
+  p.addQuadCurve(new Point(x + w - rr, y + h), new Point(x + w, y + h))
+  p.addLine(new Point(x + rr, y + h))
+  p.addQuadCurve(new Point(x, y + h - rr), new Point(x, y + h))
+  p.addLine(new Point(x, y + rr))
+  p.addQuadCurve(new Point(x + rr, y), new Point(x, y))
+  p.closeSubpath()
+  return p
 }
 
-function drawEventLabelLTR(ctx, title, a0, a1, cx, cy, R, size, isCurrent) {
-  const span = a1 - a0
-  if (span < 4) return
+/** Heart glyph as a smooth vector shape (premium look, no pixel steps). */
+function heartPath(cx, cy, w, h) {
+  const p = new Path()
+  const top = cy - h * 0.28
+  p.move(new Point(cx, cy + h * 0.5))
+  p.addCurve(
+    new Point(cx - w * 0.5, top),
+    new Point(cx - w * 0.22, cy + h * 0.24),
+    new Point(cx - w * 0.5, cy + h * 0.06)
+  )
+  p.addCurve(
+    new Point(cx, cy - h * 0.06),
+    new Point(cx - w * 0.5, top - h * 0.34),
+    new Point(cx - w * 0.08, top - h * 0.3)
+  )
+  p.addCurve(
+    new Point(cx + w * 0.5, top),
+    new Point(cx + w * 0.08, top - h * 0.3),
+    new Point(cx + w * 0.5, top - h * 0.34)
+  )
+  p.addCurve(
+    new Point(cx, cy + h * 0.5),
+    new Point(cx + w * 0.5, cy + h * 0.06),
+    new Point(cx + w * 0.22, cy + h * 0.24)
+  )
+  p.closeSubpath()
+  return p
+}
 
-  const mid = (a0 + a1) / 2
-  const midR = R * 0.55
-  const halfRad = Math.min((span * Math.PI) / 360, Math.PI / 2)
-  const chord = Math.max(28, 2 * midR * Math.sin(halfRad))
-  let boxW = Math.min(size * 0.72, Math.max(chord * 0.95, size * 0.22))
-  let boxH = Math.min(size * 0.36, R * 0.42)
-  if (span >= 45) {
-    boxW = Math.min(size * 0.78, boxW * 1.15)
-    boxH = Math.min(size * 0.4, R * 0.48)
+/**
+ * Floating task bubble on the sectograph rim:
+ * heart glyph in kawaii, plain bubble in classic.
+ */
+function drawRimTaskBubble(ctx, x, y, r, accent, dim) {
+  ctx.setFillColor(withAlpha(accent, dim ? 0.14 : 0.24))
+  ctx.fillEllipse(new Rect(x - r, y - r, r * 2, r * 2))
+  ctx.setFillColor(T.kawaii ? new Color("#FFFFFF", 0.94) : new Color("#0E131B", 0.94))
+  ctx.fillEllipse(new Rect(x - r * 0.82, y - r * 0.82, r * 1.64, r * 1.64))
+  ctx.setStrokeColor(withAlpha(accent, dim ? 0.5 : 0.95))
+  ctx.setLineWidth(Math.max(1, r * 0.22))
+  ctx.strokeEllipse(new Rect(x - r * 0.82, y - r * 0.82, r * 1.64, r * 1.64))
+
+  if (T.kawaii) {
+    ctx.setFillColor(dim ? withAlpha(accent, 0.5) : accent)
+    ctx.addPath(heartPath(x, y - r * 0.02, r * 1.0, r * 0.94))
+    ctx.fillPath()
+    ctx.setFillColor(new Color("#FFFFFF", 0.75))
+    ctx.fillEllipse(new Rect(x - r * 0.3, y - r * 0.34, r * 0.22, r * 0.22))
+  } else {
+    ctx.setFillColor(dim ? withAlpha(accent, 0.45) : accent)
+    ctx.fillEllipse(new Rect(x - r * 0.42, y - r * 0.42, r * 0.84, r * 0.84))
+  }
+}
+
+const CHAR_W = 0.55 // rough advance width per character, relative to font size
+
+/**
+ * Flow a title through a wedge: lines run outward from the hub, each line
+ * limited to the chord width available at its radius, so the text takes the
+ * shape of the sector instead of a rectangle.
+ */
+function rectHitsCircle(box, ccx, ccy, cr) {
+  const nx = Math.max(box.x, Math.min(ccx, box.x + box.w))
+  const ny = Math.max(box.y, Math.min(ccy, box.y + box.h))
+  const dx = ccx - nx
+  const dy = ccy - ny
+  return dx * dx + dy * dy < cr * cr
+}
+
+function layoutSectorText(title, fontSize, geo) {
+  const { innerR, outerR, halfRad, size, cx, cy, mid, hubR } = geo
+  const charW = fontSize * CHAR_W
+  const lineH = fontSize * 1.16
+  const words = String(title || "Event").trim().replace(/\s+/g, " ").split(" ")
+  // Follows the wedge, with a small allowance so short words still fit in
+  // narrow sectors, and a cap so nothing sprawls across the dial.
+  const widthAt = (r) =>
+    Math.min(size * 0.34, 2 * r * Math.sin(halfRad) * 0.92 + size * 0.055)
+  const boxAt = (r, w) => ({
+    x: cx + r * sin(mid) - w / 2,
+    y: cy - r * cos(mid) - lineH / 2,
+    w,
+    h: lineH,
+  })
+
+  const lines = []
+  let clipped = false
+  let r = innerR + lineH / 2
+  let i = 0
+  while (i < words.length && r + lineH / 2 <= outerR) {
+    const width = widthAt(r)
+    const box = boxAt(r, width)
+    if (rectHitsCircle(box, cx, cy, hubR)) {
+      r += lineH * 0.4
+      continue
+    }
+    const maxChars = Math.max(1, Math.floor(width / charW))
+    let line = ""
+    while (i < words.length) {
+      const next = line ? `${line} ${words[i]}` : words[i]
+      if (next.length > maxChars) break
+      line = next
+      i++
+    }
+    if (!line) {
+      // The next word is wider than this ring: try further out where the
+      // wedge widens, and only clip it once we run out of room.
+      if (r + lineH * 1.5 <= outerR) {
+        r += lineH * 0.5
+        continue
+      }
+      line = `${words[i].slice(0, Math.max(1, maxChars - 1))}…`
+      i = words.length
+      clipped = true
+    }
+    lines.push({ text: line, r, width })
+    r += lineH
   }
 
-  const lx = cx + midR * sin(mid) - boxW / 2
-  const ly = cy - midR * cos(mid) - boxH / 2
+  return { lines, overflow: clipped || i < words.length, lineH, endR: r }
+}
 
-  let bestFs = 8
-  let bestLines = wrapTitleLines(title, 14)
-  const maxFs = Math.floor(Math.min(boxH * 0.55, size * (isCurrent ? 0.09 : 0.075)))
-  for (let fs = maxFs; fs >= 8; fs--) {
-    const maxChars = Math.max(4, Math.floor((boxW * 0.92) / (fs * 0.55)))
-    const lines = wrapTitleLines(title, maxChars)
-    const totalH = lines.length * fs * 1.15
-    const longest = Math.max(...lines.map((l) => l.length)) * fs * 0.55
-    if (totalH <= boxH * 0.95 && longest <= boxW * 0.95) {
-      bestFs = fs
-      bestLines = lines
+/** Text with a soft halo so it stays readable without a background box. */
+function drawHaloText(ctx, text, rect, font, color, haloColor) {
+  ctx.setFont(font)
+  ctx.setTextAlignedCenter()
+  ctx.setTextColor(haloColor)
+  const o = Math.max(0.6, font.__size ? font.__size * 0.05 : 0.7)
+  ;[
+    [-o, 0],
+    [o, 0],
+    [0, -o],
+    [0, o],
+    [-o, -o],
+    [o, o],
+    [-o, o],
+    [o, -o],
+  ].forEach(([dx, dy]) => {
+    ctx.drawTextInRect(
+      text,
+      new Rect(rect.x + dx, rect.y + dy, rect.width, rect.height)
+    )
+  })
+  ctx.setTextColor(color)
+  ctx.drawTextInRect(text, rect)
+}
+
+/**
+ * Event name rendered inside its own sector: lines read outward from the
+ * center (radial), each line upright and left→right, no chip or box.
+ */
+function drawSectorTitle(ctx, sec, cx, cy, R, size, accent) {
+  const span = sec.a1 - sec.a0
+  const mid = (sec.a0 + sec.a1) / 2
+  const halfRad = Math.min(rad(span) / 2, Math.PI / 2)
+
+  const hubR = size * 0.155
+  const geo = {
+    innerR: hubR + size * 0.015,
+    outerR: R * 0.9,
+    halfRad,
+    size,
+    cx,
+    cy,
+    mid,
+    hubR: hubR + size * 0.012,
+  }
+  if (geo.outerR <= geo.innerR) return
+
+  const maxFs = Math.min(sec.isCurrent ? 14 : 12, Math.round(size * 0.062))
+  // The event happening now stays large enough to read at a glance
+  const minFs = sec.isCurrent
+    ? Math.max(8, size * 0.042)
+    : Math.max(6, size * 0.03)
+
+  // Largest font whose lines all fit inside the wedge; if the title never
+  // fits, fall back to the attempt that shows the most of it.
+  let best = null
+  let bestChars = -1
+  for (let fs = maxFs; fs >= minFs; fs -= 0.5) {
+    const attempt = layoutSectorText(sec.title, fs, geo)
+    if (!attempt.lines.length) continue
+    if (!attempt.overflow) {
+      best = { fs, ...attempt }
       break
     }
+    const chars = attempt.lines.reduce((n, l) => n + l.text.length, 0)
+    if (chars > bestChars) {
+      bestChars = chars
+      best = { fs, ...attempt }
+    }
+  }
+  if (!best || !best.lines.length) return
+  if (best.overflow) {
+    const last = best.lines[best.lines.length - 1]
+    last.text = `${last.text.replace(/[\s…]+$/, "")}…`
   }
 
-  const lineH = bestFs * 1.15
-  const blockH = bestLines.length * lineH + 6
-  const blockW =
-    Math.min(boxW, Math.max(...bestLines.map((l) => l.length)) * bestFs * 0.55 + 10)
-  const bx = lx + (boxW - blockW) / 2
-  const by = ly + (boxH - blockH) / 2
+  const halo = T.kawaii ? new Color("#FFFFFF", 0.9) : new Color("#05070B", 0.9)
+  const titleFont = sec.isCurrent
+    ? Font.boldSystemFont(best.fs)
+    : Font.semiboldSystemFont(best.fs)
+  titleFont.__size = best.fs
 
-  // Soft chip so text stays readable on top of wedges / ticks / hand
-  ctx.setFillColor(
-    T.kawaii ? new Color("#FFF7FB", 0.88) : new Color("#0A0C10", 0.75)
-  )
-  ctx.fillRect(new Rect(bx, by, blockW, blockH))
-  ctx.setStrokeColor(isCurrent ? T.hand : withAlpha(T.label, 0.5))
-  ctx.setLineWidth(isCurrent ? 2 : 1)
-  ctx.strokeRect(new Rect(bx, by, blockW, blockH))
-
-  ctx.setTextAlignedCenter()
-  ctx.setTextColor(T.title)
-  ctx.setFont(Font.boldSystemFont(bestFs))
-  bestLines.forEach((line, i) => {
-    ctx.drawTextInRect(line, new Rect(bx, by + 3 + i * lineH, blockW, lineH))
+  best.lines.forEach((line) => {
+    drawHaloText(
+      ctx,
+      line.text,
+      new Rect(
+        cx + line.r * sin(mid) - line.width / 2,
+        cy - line.r * cos(mid) - best.lineH / 2,
+        line.width,
+        best.lineH
+      ),
+      titleFont,
+      T.title,
+      halo
+    )
   })
+
+  // Time range trailing the title, still inside the wedge
+  const timeFs = Math.max(6, best.fs * 0.72)
+  const timeR = best.endR + timeFs * 0.2
+  if (timeR + timeFs * 0.7 > geo.outerR) return
+  const timeW = Math.min(size * 0.34, 2 * timeR * Math.sin(halfRad) * 0.92 + size * 0.055)
+  const timeText = `${hhmm(sec.start)}–${hhmm(sec.end)}`
+  if (timeText.length * timeFs * CHAR_W > timeW) return
+  const timeFont = Font.mediumSystemFont(timeFs)
+  timeFont.__size = timeFs
+  drawHaloText(
+    ctx,
+    timeText,
+    new Rect(
+      cx + timeR * sin(mid) - timeW / 2,
+      cy - timeR * cos(mid) - timeFs * 0.7,
+      timeW,
+      timeFs * 1.4
+    ),
+    timeFont,
+    T.kawaii ? withAlpha(accent, 1) : withAlpha(T.label, 1),
+    halo
+  )
 }
 
-/** Clock: Calendar event arcs + baby-blue hearts at timed-task start times. */
-function drawDial(size, timedEvents, dayStart, dayEnd, now, timedTasks) {
+/** Clock: event sectors with radial labels + heart bubbles on the rim. */
+function drawDial(size, timedEvents, dayStart, dayEnd, now, dialTasks) {
   const ctx = new DrawContext()
   ctx.size = new Size(size, size)
   ctx.opaque = false
   ctx.respectScreenScale = true
   const cx = size / 2
   const cy = size / 2
-  const R = size * 0.47
+  const R = size * 0.42
 
   if (T.kawaii) {
-    ctx.setFillColor(new Color("#FFB7DE", 0.35))
-    ctx.fillEllipse(new Rect(cx - R - 4, cy - R - 4, (R + 4) * 2, (R + 4) * 2))
+    // Soft blush halo for depth
+    for (let i = 5; i >= 1; i--) {
+      ctx.setFillColor(new Color("#FF9ACB", 0.04 * i))
+      const rr = R + i * (size * 0.01)
+      ctx.fillEllipse(new Rect(cx - rr, cy - rr, rr * 2, rr * 2))
+    }
+  } else {
+    // Machined bezel
+    const bz = R + size * 0.022
+    ctx.setFillColor(new Color("#1B2330", 0.9))
+    ctx.fillEllipse(new Rect(cx - bz, cy - bz, bz * 2, bz * 2))
+    ctx.setStrokeColor(new Color("#FFFFFF", 0.12))
+    ctx.setLineWidth(1)
+    ctx.strokeEllipse(new Rect(cx - bz, cy - bz, bz * 2, bz * 2))
   }
 
+  // Dial face
   ctx.setFillColor(T.dial)
   ctx.fillEllipse(new Rect(cx - R, cy - R, R * 2, R * 2))
+
+  // Night bands
   fillWedge(ctx, cx, cy, R * 0.98, 0, 90, T.night)
   fillWedge(ctx, cx, cy, R * 0.98, 270, 360, T.night)
-  ctx.setStrokeColor(T.track)
-  ctx.setLineWidth(size * 0.02)
-  ctx.strokeEllipse(new Rect(cx - R * 0.92, cy - R * 0.92, R * 1.84, R * 1.84))
 
+  // Past shading
   const nowA = ang(minsOf(now))
-  fillWedge(ctx, cx, cy, R * 0.9, 0, nowA, T.past)
+  fillWedge(ctx, cx, cy, R * 0.92, 0, nowA, T.past)
+
+  // Polished rim
+  ctx.setStrokeColor(withAlpha(T.track, 0.9))
+  ctx.setLineWidth(Math.max(1.5, size * 0.012))
+  ctx.strokeEllipse(new Rect(cx - R, cy - R, R * 2, R * 2))
+  ctx.setStrokeColor(T.kawaii ? new Color("#FFFFFF", 0.75) : new Color("#FFFFFF", 0.1))
+  ctx.setLineWidth(1)
+  ctx.strokeEllipse(new Rect(cx - R * 0.93, cy - R * 0.93, R * 1.86, R * 1.86))
 
   const sectorMeta = []
   timedEvents.forEach((event, i) => {
@@ -510,113 +669,132 @@ function drawDial(size, timedEvents, dayStart, dayEnd, now, timedTasks) {
     let a1 = e.getTime() >= dayEnd.getTime() ? 360 : ang(minsOf(e))
     if (a1 - a0 < 3) a1 = a0 + 3
     const c = colorFor(event, i)
-    fillWedge(ctx, cx, cy, R * 0.88, a0, a1, withAlpha(c, T.kawaii ? 0.4 : 0.55))
-    strokeArc(ctx, cx, cy, R * 0.93, size * 0.07, a0, a1, c)
     const isCurrent = now >= event.startDate && now < event.endDate
+
+    // Layered wedge for a gradient-like falloff
+    fillWedge(ctx, cx, cy, R * 0.9, a0, a1, withAlpha(c, T.kawaii ? 0.4 : 0.5))
+    fillWedge(ctx, cx, cy, R * 0.66, a0, a1, withAlpha(c, T.kawaii ? 0.24 : 0.3))
+    strokeArc(ctx, cx, cy, R * 0.9, size * 0.035, a0, a1, withAlpha(c, 0.95))
+    // Radial edges
+    ;[a0, a1].forEach((a) => {
+      drawLine(
+        ctx,
+        cx + R * 0.14 * sin(a),
+        cy - R * 0.14 * cos(a),
+        cx + R * 0.9 * sin(a),
+        cy - R * 0.9 * cos(a),
+        withAlpha(c, isCurrent ? 0.9 : 0.55),
+        isCurrent ? 1.6 : 1
+      )
+    })
+
     sectorMeta.push({
       title: event.title || "Event",
       a0,
       a1,
       isCurrent,
+      color: c,
+      start: s,
+      end: e,
     })
   })
 
-  // Timed reminders: single baby-blue pixel heart at start time only
-  ;(timedTasks || []).forEach((task) => {
-    const due = reminderDueDate(task)
-    if (!due || !sameDay(due, now)) return
-    const a = ang(minsOf(due))
-    const px = Math.max(2, Math.round(size * 0.015))
-    const hr = R * 0.93
-    const fill = task.isCompleted ? withAlpha(BABY_BLUE, 0.45) : BABY_BLUE
-    drawPixelHeart(
-      ctx,
-      cx + hr * sin(a) - (HEART_PX[0].length * px) / 2,
-      cy - hr * cos(a) - (HEART_PX.length * px) / 2,
-      px,
-      fill,
-      Color.white()
-    )
-  })
-
+  // Hour ticks + labels
   for (let h = 0; h < 24; h++) {
     const a = ang(h * 60)
     const major = h % 3 === 0
     drawLine(
       ctx,
-      cx + R * (major ? 0.78 : 0.82) * sin(a),
-      cy - R * (major ? 0.78 : 0.82) * cos(a),
-      cx + R * 0.96 * sin(a),
-      cy - R * 0.96 * cos(a),
-      T.label,
+      cx + R * (major ? 0.93 : 0.955) * sin(a),
+      cy - R * (major ? 0.93 : 0.955) * cos(a),
+      cx + R * 0.99 * sin(a),
+      cy - R * 0.99 * cos(a),
+      withAlpha(T.label, major ? 0.95 : 0.5),
       major ? 2 : 1
     )
     if (major) {
-      const fs = Math.max(9, Math.round(size * 0.05))
-      const lr = R * 0.66
-      ctx.setFont(Font.mediumSystemFont(fs))
-      ctx.setTextColor(T.label)
+      const fs = Math.max(8, Math.round(size * 0.045))
+      const lr = R * 0.86
+      ctx.setFont(Font.semiboldSystemFont(fs))
+      ctx.setTextColor(withAlpha(T.label, 0.95))
       ctx.setTextAlignedCenter()
       ctx.drawTextInRect(
         String(h).padStart(2, "0"),
-        new Rect(cx + lr * sin(a) - fs, cy - lr * cos(a) - fs * 0.55, fs * 2, fs * 1.2)
+        new Rect(cx + lr * sin(a) - fs, cy - lr * cos(a) - fs * 0.6, fs * 2, fs * 1.3)
       )
     }
   }
 
   if (T.kawaii) {
-    ;[30, 100, 170, 240, 300].forEach((a, i) => {
-      const colors = [new Color("#FF80B5"), new Color("#C4B5FD"), new Color("#7DD3FC")]
-      drawSparkle(ctx, cx + R * 0.5 * sin(a), cy - R * 0.5 * cos(a), size * 0.022, colors[i % 3])
+    ;[42, 128, 214, 318].forEach((a, i) => {
+      const colors = [new Color("#FF9FCB"), new Color("#C9B6FD"), new Color("#A8D8FF")]
+      drawSparkle(ctx, cx + R * 0.2 * sin(a), cy - R * 0.2 * cos(a), size * 0.016, colors[i % 3])
     })
   }
 
-  const tipX = cx + R * 0.97 * sin(nowA)
-  const tipY = cy - R * 0.97 * cos(nowA)
-  drawLine(ctx, cx, cy, tipX, tipY, T.hand, 2.5)
-  if (T.kawaii) {
-    const px = Math.max(2, Math.round(size * 0.014))
-    drawPixelHeart(
-      ctx,
-      tipX - (HEART_PX[0].length * px) / 2,
-      tipY - (HEART_PX.length * px) / 2,
-      px,
-      T.hand,
-      Color.white()
-    )
-  } else {
-    ctx.setFillColor(T.hand)
-    ctx.fillEllipse(new Rect(cx - 5, cy - 5, 10, 10))
-    ctx.setFillColor(T.hub)
-    ctx.fillEllipse(new Rect(cx - 2.5, cy - 2.5, 5, 5))
-  }
+  // Now hand
+  const tipX = cx + R * 0.96 * sin(nowA)
+  const tipY = cy - R * 0.96 * cos(nowA)
+  drawLine(ctx, cx, cy, tipX, tipY, T.kawaii ? Color.white() : new Color("#000000", 0.6), 5)
+  drawLine(ctx, cx, cy, tipX, tipY, T.hand, 2.4)
+  ctx.setFillColor(T.hand)
+  ctx.fillEllipse(new Rect(tipX - 3, tipY - 3, 6, 6))
 
-  const hubR = size * 0.16
+  // Center hub
+  const hubR = size * 0.155
+  ctx.setFillColor(T.kawaii ? new Color("#000000", 0.06) : new Color("#000000", 0.35))
+  ctx.fillEllipse(new Rect(cx - hubR - 1.5, cy - hubR + 1, (hubR + 1.5) * 2, (hubR + 1.5) * 2))
   ctx.setFillColor(T.hubFill)
   ctx.fillEllipse(new Rect(cx - hubR, cy - hubR, hubR * 2, hubR * 2))
-  if (T.kawaii) {
-    ctx.setStrokeColor(new Color("#FF8FBF", 0.8))
-    ctx.setLineWidth(2)
-    ctx.strokeEllipse(new Rect(cx - hubR, cy - hubR, hubR * 2, hubR * 2))
-  }
+  ctx.setStrokeColor(T.kawaii ? new Color("#FF8FBF", 0.85) : new Color("#FFFFFF", 0.18))
+  ctx.setLineWidth(2)
+  ctx.strokeEllipse(new Rect(cx - hubR, cy - hubR, hubR * 2, hubR * 2))
 
-  const tSize = Math.round(size * 0.11)
+  const tSize = Math.round(size * 0.1)
   ctx.setFont(Font.boldSystemFont(tSize))
   ctx.setTextColor(T.title)
   ctx.setTextAlignedCenter()
-  ctx.drawTextInRect(hhmm(now), new Rect(0, cy - tSize * 0.55, size, tSize))
-  const tagSize = Math.max(8, Math.round(size * 0.045))
-  ctx.setFont(Font.boldSystemFont(tagSize))
-  ctx.setTextColor(T.hand)
-  ctx.drawTextInRect(T.centerTag, new Rect(0, cy + tSize * 0.35, size, tagSize + 2))
+  ctx.drawTextInRect(hhmm(now), new Rect(0, cy - tSize * 0.78, size, tSize * 1.2))
+  const tagSize = Math.max(7, Math.round(size * 0.04))
+  ctx.setFont(Font.mediumSystemFont(tagSize))
+  ctx.setTextColor(withAlpha(T.muted, 0.95))
+  const days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
+  ctx.drawTextInRect(
+    `${days[now.getDay()]} ${now.getDate()}`,
+    new Rect(0, cy + tSize * 0.28, size, tagSize + 3)
+  )
 
-  // Event names LAST — left→right, on top of every dial art layer
+  // Event names — flowed inside their own sector, drawn above all dial art
   sectorMeta
     .slice()
     .sort((a, b) => (a.isCurrent === b.isCurrent ? 0 : a.isCurrent ? 1 : -1))
     .forEach((sec) => {
-      drawEventLabelLTR(ctx, sec.title, sec.a0, sec.a1, cx, cy, R, size, sec.isCurrent)
+      drawSectorTitle(ctx, sec, cx, cy, R, size, sec.color)
     })
+
+  // Floating heart bubbles on the rim for timed tasks
+  const bubbles = (dialTasks || [])
+    .map((task) => ({ task, due: reminderDueDate(task) }))
+    .filter((b) => !!b.due)
+    .sort((a, b) => a.due - b.due)
+  let lastAngle = null
+  let ring = 0
+  bubbles.forEach((b) => {
+    const a = ang(minsOf(b.due))
+    if (lastAngle !== null && a - lastAngle < 9) ring += 1
+    else ring = 0
+    lastAngle = a
+    const rr = Math.max(5, size * 0.042)
+    const br = R * 1.045 - ring * rr * 1.9
+    drawRimTaskBubble(
+      ctx,
+      cx + br * sin(a),
+      cy - br * cos(a),
+      rr,
+      taskAccent(b.task, 0),
+      !!b.task.isCompleted
+    )
+  })
 
   return ctx.getImage()
 }
@@ -641,16 +819,19 @@ function addTaskRow(parent, reminder, index) {
   row.layoutHorizontally()
   row.centerAlignContent()
   row.url = toggleUrl(reminder.identifier)
-  row.size = new Size(0, 0)
+  row.setPadding(4, 6, 4, 6)
+  row.cornerRadius = 9
+  row.backgroundColor = done
+    ? withAlpha(T.done, 0.1)
+    : withAlpha(accent, T.kawaii ? 0.1 : 0.13)
 
   const bubble = row.addImage(bubbleImage(done, accent))
-  bubble.imageSize = new Size(18, 18)
+  bubble.imageSize = new Size(17, 17)
 
-  row.addSpacer(5)
+  row.addSpacer(6)
 
   const col = row.addStack()
   col.layoutVertically()
-  col.size = new Size(0, 0)
 
   const title = col.addText(reminder.title || "Untitled")
   title.font = Font.semiboldSystemFont(11)
@@ -662,10 +843,10 @@ function addTaskRow(parent, reminder, index) {
         ? TODAY_TEXT
         : PINK_TEXT
   title.lineLimit = 1
-  title.minimumScaleFactor = 0.8
+  title.minimumScaleFactor = 0.75
 
   const meta = col.addText(taskMeta(reminder))
-  meta.font = Font.regularSystemFont(9)
+  meta.font = Font.mediumSystemFont(9)
   meta.textColor = done
     ? T.done
     : overdue
@@ -675,13 +856,14 @@ function addTaskRow(parent, reminder, index) {
         : withAlpha(KAWAII_PINK, 0.95)
   meta.lineLimit = 1
 
+  row.addSpacer()
+
   return row
 }
 
 function addTaskColumn(stack, tasks, startIndex, count) {
   const col = stack.addStack()
   col.layoutVertically()
-  col.size = new Size(0, 0)
 
   const slice = tasks.slice(startIndex, startIndex + count)
   if (slice.length === 0) {
@@ -692,7 +874,7 @@ function addTaskColumn(stack, tasks, startIndex, count) {
   }
   slice.forEach((task, i) => {
     addTaskRow(col, task, startIndex + i)
-    if (i < slice.length - 1) col.addSpacer(6)
+    if (i < slice.length - 1) col.addSpacer(5)
   })
   return col
 }
@@ -725,18 +907,23 @@ async function createWidget() {
   head.layoutHorizontally()
   head.centerAlignContent()
   const brand = head.addText(T.brandText)
-  brand.font = Font.boldSystemFont(T.kawaii ? 10 : 11)
+  brand.font = Font.boldSystemFont(T.kawaii ? 10 : 10.5)
   brand.textColor = T.brand
   head.addSpacer()
+
   const open = tasks.filter((t) => !t.isCompleted).length
-  const count = head.addText(T.kawaii ? `♡ ${open} left` : `${open} left`)
-  count.font = Font.mediumSystemFont(10)
-  count.textColor = T.muted
-  widget.addSpacer(6)
+  const pill = head.addStack()
+  pill.setPadding(2, 7, 2, 7)
+  pill.cornerRadius = 8
+  pill.backgroundColor = withAlpha(T.brand, T.kawaii ? 0.14 : 0.2)
+  const count = pill.addText(T.kawaii ? `♡ ${open}` : `${open} open`)
+  count.font = Font.semiboldSystemFont(9.5)
+  count.textColor = T.kawaii ? T.brand : T.title
+  widget.addSpacer(8)
 
   // —— LARGE: clock left, ONE task column right ——
   if (family === "large") {
-    const dialSize = 220
+    const dialSize = 215
     const body = widget.addStack()
     body.layoutHorizontally()
     body.topAlignContent()
@@ -744,11 +931,10 @@ async function createWidget() {
     const img = body.addImage(drawDial(dialSize, timed, start, end, now, timedTasks))
     img.imageSize = new Size(dialSize, dialSize)
 
-    body.addSpacer(10)
+    body.addSpacer(12)
 
     const right = body.addStack()
     right.layoutVertically()
-    right.size = new Size(0, 0)
 
     const label = right.addText(T.kawaii ? "today's quests" : "today's tasks")
     label.font = Font.boldSystemFont(12)
@@ -760,27 +946,27 @@ async function createWidget() {
       empty.font = Font.mediumSystemFont(12)
       empty.textColor = T.muted
     } else {
-      addTaskColumn(right, tasks, 0, 12)
+      addTaskColumn(right, tasks, 0, 11)
     }
+    right.addSpacer()
     return widget
   }
 
   // —— MEDIUM: one task column LEFT + clock ——
-  const dialSize = 145
+  const dialSize = 138
   const body = widget.addStack()
   body.layoutHorizontally()
   body.centerAlignContent()
 
   const left = body.addStack()
   left.layoutVertically()
-  left.size = new Size(0, 0)
   const label = left.addText(T.kawaii ? "quests" : "tasks")
   label.font = Font.boldSystemFont(11)
   label.textColor = T.title
   left.addSpacer(6)
   addTaskColumn(left, tasks, 0, 4)
 
-  body.addSpacer(8)
+  body.addSpacer(10)
 
   const img = body.addImage(drawDial(dialSize, timed, start, end, now, timedTasks))
   img.imageSize = new Size(dialSize, dialSize)

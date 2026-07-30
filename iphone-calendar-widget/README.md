@@ -32,16 +32,29 @@ Reminders with a **due time** (not just a date):
 - Appear as a **light baby-blue pixel heart** on the clock at that start time (duration ignored)
 - Sort to the **top** of the task list
 
-## Task heart colors
+## Task colors
 
-| Task state | Heart color |
-|------------|-------------|
+| Task state | Color |
+|------------|-------|
 | Untimed / open quest | **Pink** (cannot be overdue) |
 | Timed, due today/upcoming | **Baby blue** |
 | Timed + overdue | **Cute purple** |
 | Completed | Muted / filled |
 
-Event names on the dial are **left→right**, drawn **on top** of all other dial art.
+Timed tasks also float on the dial rim as bubbles — a **heart** in kawaii, a
+plain **dot bubble** in classic.
+
+## Event names on the dial
+
+- Placed **radially** inside their sector, upright and **left→right**
+- Drawn **on top** of wedges, ticks and the hand, on a frosted chip
+- Truncated at word boundaries; the **current** event is bold and shows its time range
+- Collision-aware: labels shift radius/angle to avoid each other and the hub
+
+## Developing
+
+`preview/render.js` renders the dial outside iOS for layout work — see
+[`preview/README.md`](preview/README.md).
 
 ## Tick off tasks
 
