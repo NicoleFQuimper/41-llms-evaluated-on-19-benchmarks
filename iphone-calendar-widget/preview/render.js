@@ -271,6 +271,7 @@ class Reminder {
   save() {}
 }
 
+const Device = { screenSize: () => new Size(393, 852) }
 const config = { widgetFamily: process.env.FAMILY || "large", runsInWidget: false }
 const args = { widgetParameter: process.env.THEME || "kawaii", queryParameters: {} }
 const Script = { name: () => "Sectograph 24h", setWidget() {}, complete() {} }
@@ -281,7 +282,7 @@ const source = fs.readFileSync(
 )
 
 const runner = new Function(
-  "Color,Size,Point,Rect,Font,Path,DrawContext,ListWidget,CalendarEvent,Reminder,config,args,Script,Date",
+  "Color,Size,Point,Rect,Font,Path,DrawContext,ListWidget,CalendarEvent,Reminder,config,args,Script,Device,Date",
   `return (async () => { ${source} })()`
 )
 
@@ -309,6 +310,7 @@ runner(
   config,
   args,
   Script,
+  Device,
   FixedDate
 )
   .then(() => {

@@ -22,9 +22,14 @@ Events never appear in the task list. Tasks never appear on the clock.
 
 | Size | Layout |
 |------|--------|
-| **Small** | Clock only (events + baby-blue hearts for timed tasks) — no task list |
-| **Medium** | **1 task column on the left** + clock |
-| **Large** | Clock left + **1 task column** on the right |
+| **Small** (square) | **Clock only**, filling the widget |
+| **Large** (square) | **Clock only**, filling the widget — a huge sectograph |
+| **Medium** (rectangle) | Square clock filling the height + **1 task column** beside it |
+
+Tasks appear on the **medium** widget only, so both square sizes can give the
+whole widget to the dial. The dial is sized from the real widget dimensions
+for the current device (see `WIDGET_BOXES`), so it fills the space without
+being clipped.
 
 ## Timed tasks
 

@@ -128,6 +128,50 @@ function colorFor(item, i) {
   return T.palette[i % T.palette.length]
 }
 
+/**
+ * Home Screen widget dimensions in points, per screen size. Needed so the
+ * dial can fill the widget exactly instead of guessing and getting clipped.
+ * Keys are "screenWidth x screenHeight" in portrait points.
+ */
+const WIDGET_BOXES = {
+  "320x568": { small: 141, medium: [291, 141], large: [291, 299] },
+  "375x667": { small: 148, medium: [322, 148], large: [322, 324] },
+  "375x812": { small: 155, medium: [329, 155], large: [329, 345] },
+  "390x844": { small: 158, medium: [338, 158], large: [338, 354] },
+  "393x852": { small: 158, medium: [338, 158], large: [338, 354] },
+  "402x874": { small: 162, medium: [344, 162], large: [344, 366] },
+  "414x736": { small: 157, medium: [348, 157], large: [348, 357] },
+  "414x896": { small: 169, medium: [360, 169], large: [360, 379] },
+  "428x926": { small: 170, medium: [364, 170], large: [364, 382] },
+  "430x932": { small: 170, medium: [364, 170], large: [364, 382] },
+  "440x956": { small: 170, medium: [364, 170], large: [364, 382] },
+}
+
+function widgetBox(fam) {
+  let sw = 393
+  let sh = 852
+  try {
+    const screen = Device.screenSize()
+    sw = Math.round(Math.min(screen.width, screen.height))
+    sh = Math.round(Math.max(screen.width, screen.height))
+  } catch (_) {}
+
+  const entry =
+    WIDGET_BOXES[`${sw}x${sh}`] ||
+    // Unknown device: scale from the screen width, which tracks widget size
+    // closely enough on every layout Apple has shipped so far.
+    {
+      small: sw * 0.4,
+      medium: [sw * 0.865, sw * 0.4],
+      large: [sw * 0.865, sw * 0.9],
+    }
+
+  const value = entry[fam] || entry.medium
+  const [w, h] = Array.isArray(value) ? value : [value, value]
+  // A hair of slack so nothing can be clipped by rounding
+  return { w: Math.floor(w) - 2, h: Math.floor(h) - 2 }
+}
+
 function withAlpha(color, alpha) {
   try {
     const toHex = (v) =>
@@ -482,13 +526,26 @@ function layoutSectorText(title, fontSize, anchorR, geo) {
   const ay = geo.cy - anchorR * cos(geo.mid)
   const maxLines = Math.max(1, Math.min(6, Math.floor((geo.outerR * 1.4) / lineH)))
 
+  // Rows step along the sector itself (so a diagonal wedge gets diagonal
+  // rows), always moving down the screen so they read top to bottom. Wedges
+  // that run nearly horizontally fall back to plain vertical stacking.
+  const ux = sin(geo.mid)
+  const uy = -cos(geo.mid)
+  const step =
+    Math.abs(uy) >= 0.45
+      ? { x: (ux * lineH) / Math.abs(uy), y: lineH }
+      : { x: 0, y: lineH }
+
   let result = null
+  let complete = null
   for (let n = 1; n <= maxLines; n++) {
     const rows = []
     for (let i = 0; i < n; i++) {
-      const top = ay - (n * lineH) / 2 + i * lineH
-      const span = rowSpanInSector(ax, top, lineH, geo)
-      rows.push({ top, x: span ? span.x : ax, w: span ? span.w : 0 })
+      const k = i - (n - 1) / 2
+      const rowCx = ax + step.x * k
+      const top = ay + step.y * k - lineH / 2
+      const span = rowSpanInSector(rowCx, top, lineH, geo)
+      rows.push({ top, x: span ? span.x : rowCx, w: span ? span.w : 0 })
     }
     const { lines, remaining, hyphens } = wrapIntoRows(words, rows, fontSize)
     const placed = lines
@@ -498,9 +555,14 @@ function layoutSectorText(title, fontSize, anchorR, geo) {
       .filter(Boolean)
     if (!placed.length) continue
     result = { lines: placed, lineH, remaining: remaining.length, hyphens }
-    if (!remaining.length) return result
+    if (!remaining.length) {
+      // A layout that fits everything without hyphens beats one that needed
+      // them, so keep looking at taller blocks before settling.
+      if (!hyphens) return result
+      if (!complete) complete = result
+    }
   }
-  return result
+  return complete || result
 }
 
 /** Text with a soft halo so it stays readable without a background box. */
@@ -546,9 +608,10 @@ function drawSectorTitle(ctx, sec, cx, cy, R, size, accent) {
   }
   if (geo.outerR <= geo.hubR) return
 
-  // Small type so more of the title fits inside the wedge
-  const maxFs = Math.min(sec.isCurrent ? 10 : 9, Math.round(size * 0.05))
-  const minFs = Math.max(5, size * 0.025)
+  // Small type so more of the title fits, but scaled to the dial
+  const maxFs = Math.min(sec.isCurrent ? 22 : 20, Math.round(size * 0.055))
+  // Flat floor: narrow sectors need small type even on a huge dial
+  const minFs = 5.5
   const anchors = [0.68, 0.78, 0.58, 0.88, 0.48].map((f) => R * f)
 
   let fallback = null
@@ -826,7 +889,6 @@ function addTaskColumn(stack, tasks, startIndex, count) {
 async function createWidget() {
   const widget = new ListWidget()
   widget.backgroundColor = T.bg
-  widget.setPadding(10, 10, 10, 10)
   widget.url = "calshow://"
 
   const now = new Date()
@@ -835,76 +897,47 @@ async function createWidget() {
   const timedTasks = allTasks.filter(
     (t) => hasDueTime(t) && reminderDueDate(t) && sameDay(reminderDueDate(t), now)
   )
-  const tasks = family === "small" ? [] : allTasks
+  const box = widgetBox(family)
 
-  // —— SMALL: clock only (events + baby-blue timed-task hearts; no task list) ——
-  if (family === "small") {
-    widget.setPadding(6, 6, 6, 6)
-    const dialSize = 155
+  // —— SQUARE (small + large): nothing but the clock, as big as it fits ——
+  if (family !== "medium") {
+    widget.setPadding(0, 0, 0, 0)
+    const dialSize = Math.min(box.w, box.h)
+    widget.addSpacer()
     const img = widget.addImage(drawDial(dialSize, timed, start, end, now, timedTasks))
     img.imageSize = new Size(dialSize, dialSize)
     img.centerAlignImage()
+    widget.addSpacer()
     return widget
   }
 
-  const head = widget.addStack()
-  head.layoutHorizontally()
-  head.centerAlignContent()
-  const brand = head.addText(T.brandText)
-  brand.font = Font.boldSystemFont(T.kawaii ? 10 : 11)
-  brand.textColor = T.brand
-  head.addSpacer()
-  const open = tasks.filter((t) => !t.isCompleted).length
-  const count = head.addText(T.kawaii ? `♡ ${open} left` : `${open} left`)
-  count.font = Font.mediumSystemFont(10)
-  count.textColor = T.muted
-  widget.addSpacer(6)
+  // —— MEDIUM: square clock filling the height + tasks in the space left ——
+  const padY = 4
+  widget.setPadding(padY, 8, padY, 8)
+  const dialSize = box.h - padY * 2
 
-  // —— LARGE: clock left, ONE task column right ——
-  if (family === "large") {
-    const dialSize = 220
-    const body = widget.addStack()
-    body.layoutHorizontally()
-    body.topAlignContent()
-
-    const img = body.addImage(drawDial(dialSize, timed, start, end, now, timedTasks))
-    img.imageSize = new Size(dialSize, dialSize)
-
-    body.addSpacer(10)
-
-    const right = body.addStack()
-    right.layoutVertically()
-    right.size = new Size(0, 0)
-
-    const label = right.addText(T.kawaii ? "today's quests" : "today's tasks")
-    label.font = Font.boldSystemFont(12)
-    label.textColor = T.title
-    right.addSpacer(8)
-
-    if (tasks.length === 0) {
-      const empty = right.addText(T.freeText)
-      empty.font = Font.mediumSystemFont(12)
-      empty.textColor = T.muted
-    } else {
-      addTaskColumn(right, tasks, 0, 12)
-    }
-    return widget
-  }
-
-  // —— MEDIUM: one task column LEFT + clock ——
-  const dialSize = 145
   const body = widget.addStack()
   body.layoutHorizontally()
   body.centerAlignContent()
 
   const left = body.addStack()
   left.layoutVertically()
-  left.size = new Size(0, 0)
-  const label = left.addText(T.kawaii ? "quests" : "tasks")
+
+  const head = left.addStack()
+  head.layoutHorizontally()
+  head.centerAlignContent()
+  const label = head.addText(T.kawaii ? "quests" : "tasks")
   label.font = Font.boldSystemFont(11)
   label.textColor = T.title
+  head.addSpacer(6)
+  const open = allTasks.filter((t) => !t.isCompleted).length
+  const count = head.addText(T.kawaii ? `♡ ${open}` : `${open} open`)
+  count.font = Font.mediumSystemFont(10)
+  count.textColor = T.muted
   left.addSpacer(6)
-  addTaskColumn(left, tasks, 0, 4)
+
+  addTaskColumn(left, allTasks, 0, 4)
+  left.addSpacer()
 
   body.addSpacer(8)
 
