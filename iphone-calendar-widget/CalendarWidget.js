@@ -946,18 +946,21 @@ async function createWidget() {
   }
 
   // —— WIDE (medium, and iPad's extra large): square clock filling the height
-  // + tasks in the space left. Extra large splits the rectangle down the
-  // middle and scales the list up so it doesn't float in all that room.
+  // + tasks in the space left. Extra large is two big squares side by side:
+  // the same square the large widget uses, doubled — tasks left, clock right.
   const xl = family === "extraLarge"
-  const scale = xl ? 1.5 : 1
-  const padY = xl ? 12 : 4
-  const padX = xl ? 16 : 8
-  const gap = xl ? 20 : 8
+  const scale = xl ? 1.6 : 1
+  const padY = 4
+  const padX = 8
+  const gap = xl ? 12 : 8
   widget.setPadding(padY, padX, padY, padX)
 
   const inner = box.w - padX * 2
-  const dialSize = Math.min(box.h - padY * 2, xl ? inner / 2 - gap : inner)
-  const taskWidth = inner - dialSize - gap
+  // Take the square from the large widget, so the clock here is exactly the
+  // big square clock; the width guard only kicks in if that can't fit twice.
+  const square = xl ? Math.min(box.h, widgetBox("large").h) : box.h
+  const dialSize = Math.min(square - padY * 2, xl ? inner / 2 - gap : inner)
+  const taskWidth = xl ? dialSize : inner - dialSize - gap
 
   const body = widget.addStack()
   body.layoutHorizontally()
@@ -980,7 +983,7 @@ async function createWidget() {
   const label = head.addText(T.kawaii ? "quests" : "tasks")
   label.font = Font.boldSystemFont(11 * scale)
   label.textColor = T.title
-  head.addSpacer(6)
+  head.addSpacer(6 * scale)
   const open = allTasks.filter((t) => !t.isCompleted).length
   const count = head.addText(T.kawaii ? `♡ ${open}` : `${open} open`)
   count.font = Font.mediumSystemFont(10 * scale)
