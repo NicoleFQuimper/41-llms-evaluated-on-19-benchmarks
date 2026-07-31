@@ -1009,25 +1009,23 @@ async function createWidget() {
 }
 
 const toggleId = args.queryParameters.toggle
-if (toggleId) {
+
+if (toggleId && !config.runsInWidget) {
+  // Ticking a heart from the Home Screen: flip the Reminder and hand control
+  // straight back, instead of drawing and presenting the whole widget first.
   await toggleReminder(toggleId)
-}
-
-const widget = await createWidget()
-widget.refreshAfterDate = new Date(Date.now() + 1000 * 30)
-
-if (config.runsInWidget) {
-  Script.setWidget(widget)
-} else if (toggleId) {
-  Script.setWidget(widget)
-  if (family === "large") await widget.presentLarge()
-  else if (family === "small") await widget.presentSmall()
-  else await widget.presentMedium()
-} else if (family === "small") {
-  await widget.presentSmall()
-} else if (family === "large") {
-  await widget.presentLarge()
 } else {
-  await widget.presentMedium()
+  const widget = await createWidget()
+  widget.refreshAfterDate = new Date(Date.now() + 1000 * 30)
+
+  if (config.runsInWidget) {
+    Script.setWidget(widget)
+  } else if (family === "small") {
+    await widget.presentSmall()
+  } else if (family === "large" || family === "extraLarge") {
+    await widget.presentLarge()
+  } else {
+    await widget.presentMedium()
+  }
 }
 Script.complete()

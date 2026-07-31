@@ -84,8 +84,15 @@ and dark with circle checkboxes.
 ## Tick off tasks
 
 1. Add to-dos in the iOS **Reminders** app (due today, overdue, or no due date).
-2. On Medium/Large, **tap** a heart/circle — it completes/reopens that Reminder.
+2. On the rectangular sizes, **tap** a heart/circle — it completes/reopens that
+   Reminder in Reminders itself.
 3. Allow **Reminders** + **Calendar** access when Scriptable asks.
+
+A tap opens the script through `scriptable:///run?...&toggle=<reminder id>`,
+which flips the Reminder and returns without drawing anything, so Scriptable
+only flashes on screen for an instant. A widget cannot toggle in place unless
+it ships **App Intents** from a real app target, which Scriptable does not
+expose — the round trip through Scriptable is as close as this gets.
 
 ## Install
 
