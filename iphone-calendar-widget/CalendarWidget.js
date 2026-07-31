@@ -148,17 +148,17 @@ const WIDGET_BOXES = {
   "428x926": { small: 170, medium: [364, 170], large: [364, 382] },
   "430x932": { small: 170, medium: [364, 170], large: [364, 382] },
   "440x956": { small: 170, medium: [364, 170], large: [364, 382] },
-  // iPad — large is square here, not tall
-  "744x1133": { small: 141, medium: [305, 141], large: [305, 305] },
-  "768x1024": { small: 141, medium: [305, 141], large: [305, 305] },
-  "810x1080": { small: 146, medium: [320, 146], large: [320, 320] },
-  "820x1180": { small: 155, medium: [342, 155], large: [342, 342] },
-  "834x1112": { small: 150, medium: [327, 150], large: [327, 327] },
-  "834x1194": { small: 155, medium: [342, 155], large: [342, 342] },
-  "954x1373": { small: 162, medium: [350, 162], large: [350, 350] },
-  "970x1389": { small: 162, medium: [350, 162], large: [350, 350] },
-  "1024x1366": { small: 170, medium: [378, 170], large: [378, 378] },
-  "1192x1590": { small: 188, medium: [412, 188], large: [412, 412] },
+  // iPad — large is square here, not tall, and extra large is a wide double large
+  "744x1133": { small: 141, medium: [305, 141], large: [305, 305], extraLarge: [634, 305] },
+  "768x1024": { small: 141, medium: [305, 141], large: [305, 305], extraLarge: [634, 305] },
+  "810x1080": { small: 146, medium: [320, 146], large: [320, 320], extraLarge: [669, 320] },
+  "820x1180": { small: 155, medium: [342, 155], large: [342, 342], extraLarge: [715, 342] },
+  "834x1112": { small: 150, medium: [327, 150], large: [327, 327], extraLarge: [682, 327] },
+  "834x1194": { small: 155, medium: [342, 155], large: [342, 342], extraLarge: [715, 342] },
+  "954x1373": { small: 162, medium: [350, 162], large: [350, 350], extraLarge: [726, 350] },
+  "970x1389": { small: 162, medium: [350, 162], large: [350, 350], extraLarge: [726, 350] },
+  "1024x1366": { small: 170, medium: [378, 170], large: [378, 378], extraLarge: [795, 378] },
+  "1192x1590": { small: 188, medium: [412, 188], large: [412, 412], extraLarge: [860, 412] },
 }
 
 function widgetBox(fam) {
@@ -181,7 +181,7 @@ function widgetBox(fam) {
     (isPad
       ? // Unlisted iPad: widget sizes barely move across models, so the
         // 11-inch numbers are a safe default rather than scaling by screen.
-        { small: 155, medium: [342, 155], large: [342, 342] }
+        { small: 155, medium: [342, 155], large: [342, 342], extraLarge: [715, 342] }
       : {
           small: sw * 0.4,
           medium: [sw * 0.865, sw * 0.4],
@@ -842,7 +842,7 @@ function taskMeta(reminder) {
   return `due ${hhmm(due)}`
 }
 
-function addTaskRow(parent, reminder, index) {
+function addTaskRow(parent, reminder, index, scale = 1) {
   const done = !!reminder.isCompleted
   const overdue = isOverdueTask(reminder)
   const timed = hasDueTime(reminder)
@@ -855,16 +855,16 @@ function addTaskRow(parent, reminder, index) {
   row.size = new Size(0, 0)
 
   const bubble = row.addImage(bubbleImage(done, accent))
-  bubble.imageSize = new Size(18, 18)
+  bubble.imageSize = new Size(18 * scale, 18 * scale)
 
-  row.addSpacer(5)
+  row.addSpacer(5 * scale)
 
   const col = row.addStack()
   col.layoutVertically()
   col.size = new Size(0, 0)
 
   const title = col.addText(reminder.title || "Untitled")
-  title.font = Font.semiboldSystemFont(11)
+  title.font = Font.semiboldSystemFont(11 * scale)
   title.textColor = done
     ? T.done
     : overdue
@@ -876,7 +876,7 @@ function addTaskRow(parent, reminder, index) {
   title.minimumScaleFactor = 0.8
 
   const meta = col.addText(taskMeta(reminder))
-  meta.font = Font.regularSystemFont(9)
+  meta.font = Font.regularSystemFont(9 * scale)
   meta.textColor = done
     ? T.done
     : overdue
@@ -889,7 +889,7 @@ function addTaskRow(parent, reminder, index) {
   return row
 }
 
-function addTaskColumn(stack, tasks, startIndex, count) {
+function addTaskColumn(stack, tasks, startIndex, count, scale = 1) {
   const col = stack.addStack()
   col.layoutVertically()
   col.size = new Size(0, 0)
@@ -897,13 +897,13 @@ function addTaskColumn(stack, tasks, startIndex, count) {
   const slice = tasks.slice(startIndex, startIndex + count)
   if (slice.length === 0) {
     const empty = col.addText(T.freeText)
-    empty.font = Font.mediumSystemFont(11)
+    empty.font = Font.mediumSystemFont(11 * scale)
     empty.textColor = T.muted
     return col
   }
   slice.forEach((task, i) => {
-    addTaskRow(col, task, startIndex + i)
-    if (i < slice.length - 1) col.addSpacer(6)
+    addTaskRow(col, task, startIndex + i, scale)
+    if (i < slice.length - 1) col.addSpacer(6 * scale)
   })
   return col
 }
@@ -945,10 +945,19 @@ async function createWidget() {
     return widget
   }
 
-  // —— MEDIUM: square clock filling the height + tasks in the space left ——
-  const padY = 4
-  widget.setPadding(padY, 8, padY, 8)
-  const dialSize = box.h - padY * 2
+  // —— WIDE (medium, and iPad's extra large): square clock filling the height
+  // + tasks in the space left. Extra large splits the rectangle down the
+  // middle and scales the list up so it doesn't float in all that room.
+  const xl = family === "extraLarge"
+  const scale = xl ? 1.5 : 1
+  const padY = xl ? 12 : 4
+  const padX = xl ? 16 : 8
+  const gap = xl ? 20 : 8
+  widget.setPadding(padY, padX, padY, padX)
+
+  const inner = box.w - padX * 2
+  const dialSize = Math.min(box.h - padY * 2, xl ? inner / 2 - gap : inner)
+  const taskWidth = inner - dialSize - gap
 
   const body = widget.addStack()
   body.layoutHorizontally()
@@ -956,31 +965,38 @@ async function createWidget() {
 
   const left = body.addStack()
   left.layoutVertically()
+  if (xl) left.size = new Size(taskWidth, dialSize)
 
   const brand = left.addText(T.brandText)
-  brand.font = Font.boldSystemFont(T.kawaii ? 9.5 : 10)
+  brand.font = Font.boldSystemFont((T.kawaii ? 9.5 : 10) * scale)
   brand.textColor = T.brand
   brand.lineLimit = 1
   brand.minimumScaleFactor = 0.7
-  left.addSpacer(4)
+  left.addSpacer(4 * scale)
 
   const head = left.addStack()
   head.layoutHorizontally()
   head.centerAlignContent()
   const label = head.addText(T.kawaii ? "quests" : "tasks")
-  label.font = Font.boldSystemFont(11)
+  label.font = Font.boldSystemFont(11 * scale)
   label.textColor = T.title
   head.addSpacer(6)
   const open = allTasks.filter((t) => !t.isCompleted).length
   const count = head.addText(T.kawaii ? `♡ ${open}` : `${open} open`)
-  count.font = Font.mediumSystemFont(10)
+  count.font = Font.mediumSystemFont(10 * scale)
   count.textColor = T.muted
-  left.addSpacer(6)
+  left.addSpacer(6 * scale)
 
-  addTaskColumn(left, allTasks, 0, 4)
+  // Rows are ~27pt tall at scale 1; the header eats roughly two of them.
+  const headerHeight = 34 * scale
+  const rows = xl
+    ? Math.max(3, Math.min(8, Math.floor((dialSize - headerHeight) / (27 * scale))))
+    : 4
+  addTaskColumn(left, allTasks, 0, rows, scale)
   left.addSpacer()
 
-  body.addSpacer(8)
+  if (xl) body.addSpacer()
+  else body.addSpacer(gap)
 
   const img = body.addImage(drawDial(dialSize, timed, start, end, now, timedTasks))
   img.imageSize = new Size(dialSize, dialSize)

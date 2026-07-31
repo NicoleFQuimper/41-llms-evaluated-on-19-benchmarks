@@ -25,8 +25,9 @@ Events never appear in the task list. Tasks never appear on the clock.
 | **Small** (square) | Title + **clock only**, filling the widget |
 | **Large** (square) | Title + **clock only** — a huge sectograph |
 | **Medium** (rectangle) | Square clock filling the height + **1 task column** beside it |
+| **Extra large** (iPad) | Rectangle **split in half**: tasks left, clock right, both edge to edge, with type and hearts scaled up and more rows |
 
-Tasks appear on the **medium** widget only, so both square sizes can give
+Tasks appear on the **rectangular** widgets only, so both square sizes can give
 nearly the whole widget to the dial. The title (`✦ MAGICAL SECTOGRAPH ✦` /
 `SECTOGRAPH`) sits at the top of the square sizes and above the task column on
 medium.
