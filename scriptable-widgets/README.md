@@ -1,27 +1,29 @@
 # Stellara — Magical Girl Year Console
 
-Scriptable iPhone widgets that show year progress % + a week grid.
+Scriptable iPhone / iPad widgets: year progress % + week grid, extra glowy.
 
 ## Light mode (default) 💕
 
 **Use this one:** [`MagicalYearConsole.js`](./MagicalYearConsole.js)
 
-Candy pastels, soft blush panel, hearts, week candies — extra kawaii.
-
 Optional dark twin: [`MagicalYearConsoleDark.js`](./MagicalYearConsoleDark.js)
 
-## Install (Scriptable)
+## Supported sizes
+
+| Family | Where | Layout |
+|--------|--------|--------|
+| `small` | iPhone / iPad | Compact stack |
+| `medium` | iPhone / iPad | Split — % left, weeks right |
+| `large` | iPhone large / **iPad big square** | Full stacked console |
+| `extraLarge` | **iPad XL** (double-wide rectangle) | Wide split console |
+
+Run the script in Scriptable to preview all four (including Extra Large on iPad).
+
+## Install
 
 1. Install **[Scriptable](https://apps.apple.com/app/scriptable/id1405459188)**.
-2. Open Scriptable → **+** → paste **`MagicalYearConsole.js`** (the light one).
-3. Save as e.g. `Stellara Light`.
-4. Home Screen → **Add Widget** → **Scriptable** → Medium (best).
-5. Edit widget → set **Script** to `Stellara Light`.
+2. Paste **`MagicalYearConsole.js`** into a new script.
+3. Home Screen → **Add Widget** → **Scriptable** → pick a size.
+4. Edit widget → set **Script** to your Stellara script.
 
-Run the script in Scriptable to preview Small / Medium / Large.
-
-## Layout (no overlap)
-
-- **Small** — compact stack  
-- **Medium** — % on the left, week grid on the right  
-- **Large** — full stacked console  
+Re-paste after updates so the glow / layout fixes apply.
