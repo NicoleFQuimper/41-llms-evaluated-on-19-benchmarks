@@ -13,10 +13,10 @@
 
 const CONFIG = {
   title: "STELLARA",
-  subtitle: "KAWAII CONSOLE",
+  subtitle: "coquette console ♥",
   weekLabel: "WEEK CANDIES",
-  percentCaption: "♡ year sparkle",
-  tagline: "stay soft · stay sparkling · you got this",
+  percentCaption: "♥ year sparkle",
+  tagline: "stay soft · stay sparkling · you got this ♥",
   // Soft girl palette + cyber bar stops
   colors: {
     bg0: "#fff7fb",
@@ -24,6 +24,8 @@ const CONFIG = {
     panel: "#ffffff",
     sakura: "#ff7eb6",
     sakuraSoft: "#ffb0d2",
+    neonPink: "#ff2d8a", // full neon for title heart + brand
+    neonPinkSoft: "#ff5aa8",
     rose: "#e891b0",
     mint: "#9adfd0",
     star: "#ffe08a",
@@ -31,6 +33,7 @@ const CONFIG = {
     peach: "#ffd0bc",
     ink: "#8a3a5c",
     inkSoft: "#a85878",
+    inkDeep: "#6b1848", // high-contrast % digits
     mute: "#c49aaf",
     dim: "#ffe8f1",
     dimStroke: "#f3c6d8",
@@ -156,19 +159,27 @@ function drawSpark(dc, x, y, size, colorHex, alpha = 0.75) {
   dc.fillRect(new Rect(x - size, y - size * 0.08, size * 2, size * 0.16));
 }
 
-function drawHeart(dc, x, y, size, colorHex, alpha = 0.8) {
+/** Plump FULL heart (filled) — not an outline / empty heart. */
+function drawHeart(dc, x, y, size, colorHex, alpha = 1) {
   const s = size;
-  softBlob(dc, x, y + s * 0.1, s * 1.2, colorHex, alpha * 0.35);
+  softBlob(dc, x, y + s * 0.08, s * 1.15, colorHex, alpha * 0.4);
   dc.setFillColor(hex(colorHex, alpha));
-  dc.fillEllipse(new Rect(x - s * 0.55, y - s * 0.35, s * 0.55, s * 0.55));
-  dc.fillEllipse(new Rect(x - s * 0.05, y - s * 0.35, s * 0.55, s * 0.55));
+  // Two lobes
+  dc.fillEllipse(new Rect(x - s * 0.62, y - s * 0.42, s * 0.66, s * 0.66));
+  dc.fillEllipse(new Rect(x - s * 0.04, y - s * 0.42, s * 0.66, s * 0.66));
+  // Pointy bottom (filled triangle-ish)
   const path = new Path();
-  path.move(new Point(x - s * 0.52, y + s * 0.05));
-  path.addLine(new Point(x, y + s * 0.7));
-  path.addLine(new Point(x + s * 0.52, y + s * 0.05));
+  path.move(new Point(x - s * 0.62, y + s * 0.08));
+  path.addLine(new Point(x, y + s * 0.82));
+  path.addLine(new Point(x + s * 0.62, y + s * 0.08));
   path.closeSubpath();
   dc.addPath(path);
   dc.fillPath();
+  // Center fill so there’s never a hollow look
+  dc.fillEllipse(new Rect(x - s * 0.35, y - s * 0.1, s * 0.7, s * 0.55));
+  // Tiny shiny highlight
+  dc.setFillColor(hex("#ffffff", alpha * 0.55));
+  dc.fillEllipse(new Rect(x - s * 0.38, y - s * 0.28, s * 0.28, s * 0.22));
 }
 
 function drawText(dc, text, rect, { font, color, align = "left" } = {}) {
@@ -410,15 +421,24 @@ function paintHeader(dc, L, c, stats) {
   const { x, y, w, h } = L.header;
   const small = L.family === "small";
   const titleSize = L.family === "extraLarge" ? 16 : small ? 11 : 12;
-  glowText(dc, `♡ ${CONFIG.title}`, new Rect(x, y, w * 0.72, small ? h : 15), {
+  const heartS = L.family === "extraLarge" ? 7.5 : small ? 5.2 : 6.2;
+  const heartX = x + heartS * 0.85;
+  const heartY = y + (small ? h * 0.42 : 7);
+
+  // FULL neon-pink heart (drawn filled — not ♡ outline)
+  drawHeart(dc, heartX, heartY, heartS, c.neonPink, 1);
+
+  const titleX = x + heartS * 2.05;
+  glowText(dc, CONFIG.title, new Rect(titleX, y, w - (titleX - x) - 28, small ? h : 15), {
     font: Font.boldRoundedSystemFont(titleSize),
-    colorHex: c.sakura,
+    colorHex: c.neonPinkSoft,
     align: "left",
-    glow: 0.35,
-    finalHex: c.ink,
+    glow: 0.55,
+    finalHex: c.neonPink,
   });
+
   if (L.showSubtitle) {
-    drawText(dc, CONFIG.subtitle, new Rect(x, y + (L.family === "extraLarge" ? 18 : 14), w * 0.8, 12), {
+    drawText(dc, CONFIG.subtitle, new Rect(x, y + (L.family === "extraLarge" ? 18 : 14), w * 0.85, 12), {
       font: Font.mediumRoundedSystemFont(L.family === "extraLarge" ? 10 : 7.5),
       color: hex(c.mute, 0.95),
       align: "left",
@@ -426,7 +446,7 @@ function paintHeader(dc, L, c, stats) {
   }
   drawText(dc, `${stats.year}`, new Rect(x, y, w, small ? h : 14), {
     font: Font.semiboldRoundedSystemFont(L.family === "extraLarge" ? 13 : 10),
-    color: hex(c.rose, 0.95),
+    color: hex(c.neonPinkSoft, 0.95),
     align: "right",
   });
 }
@@ -435,26 +455,68 @@ function paintPercent(dc, L, c, stats) {
   const { x, y, w, numberH, captionH, font, showCaptionHere } = L.percent;
   const pctStr = `${(stats.pct * 100).toFixed(1)}%`;
   const cx = x + w / 2;
-  const cy = y + numberH * 0.52;
+  const cy = y + numberH * 0.5;
 
-  // Soft pastel bloom only (no hard rings)
-  softBlob(dc, cx, cy, Math.min(w, numberH) * 0.62, c.sakuraSoft, 0.28);
-  softBlob(dc, cx, cy, Math.min(w, numberH) * 0.4, c.lav, 0.18);
-  softBlob(dc, cx, cy, Math.min(w, numberH) * 0.22, c.gBlue, 0.1);
+  // Soft coquette “spotlight” plate so digits pop
+  const plateW = Math.min(w * 0.92, numberH * 2.1);
+  const plateH = numberH * 0.82;
+  softBlob(dc, cx, cy, Math.min(w, numberH) * 0.7, c.sakuraSoft, 0.32);
+  softBlob(dc, cx, cy, Math.min(w, numberH) * 0.45, "#ffffff", 0.55);
+  softBlob(dc, cx, cy, Math.min(w, numberH) * 0.28, c.neonPinkSoft, 0.16);
+  fillRoundRect(
+    dc,
+    new Rect(cx - plateW / 2, cy - plateH / 2, plateW, plateH),
+    plateH / 2,
+    hex("#ffffff", 0.45)
+  );
 
-  glowText(dc, pctStr, new Rect(x, y, w, numberH), {
-    font: Font.boldRoundedSystemFont(font),
-    colorHex: c.sakuraSoft,
+  // Tiny sparkles around the %
+  drawSpark(dc, cx - plateW * 0.42, cy - plateH * 0.28, 1.4, c.star, 0.75);
+  drawSpark(dc, cx + plateW * 0.4, cy + plateH * 0.22, 1.2, c.neonPinkSoft, 0.65);
+  drawHeart(dc, cx + plateW * 0.38, cy - plateH * 0.3, 2.4, c.neonPink, 0.85);
+
+  // Extra-visible digits: white soft halo → neon pink glow → deep readable fill
+  const pctFont = Font.heavyRoundedSystemFont(font + 1);
+  const pctRect = new Rect(x, y, w, numberH);
+  // White cushion for contrast
+  for (const [ox, oy, a] of [
+    [0, 0, 0.55],
+    [0, 1, 0.35],
+    [0, -1, 0.35],
+    [1, 0, 0.3],
+    [-1, 0, 0.3],
+  ]) {
+    drawText(dc, pctStr, new Rect(pctRect.x + ox, pctRect.y + oy, pctRect.width, pctRect.height), {
+      font: pctFont,
+      color: hex("#ffffff", a),
+      align: "center",
+    });
+  }
+  glowText(dc, pctStr, pctRect, {
+    font: pctFont,
+    colorHex: c.neonPinkSoft,
     align: "center",
-    glow: 0.4,
-    finalHex: c.ink,
+    glow: 0.6,
+    finalHex: c.neonPink,
+  });
+  // Crisp top layer for max readability
+  drawText(dc, pctStr, pctRect, {
+    font: pctFont,
+    color: hex(c.inkDeep, 0.92),
+    align: "center",
+  });
+  // Neon pink kiss on top (slightly inset feel via second pass)
+  drawText(dc, pctStr, new Rect(x, y - 0.4, w, numberH), {
+    font: pctFont,
+    color: hex(c.neonPink, 0.88),
+    align: "center",
   });
 
   if (showCaptionHere && captionH > 0) {
     const capFont = L.family === "small" ? 7.5 : 9;
     drawText(dc, CONFIG.percentCaption, new Rect(x, y + numberH, w, captionH), {
       font: Font.mediumRoundedSystemFont(capFont),
-      color: hex(c.mute, 0.95),
+      color: hex(c.neonPinkSoft, 0.9),
       align: "center",
     });
   }
