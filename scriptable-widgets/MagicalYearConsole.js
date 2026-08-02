@@ -475,16 +475,17 @@ function paintPercent(dc, L, c, stats) {
   drawSpark(dc, cx + plateW * 0.4, cy + plateH * 0.22, 1.2, c.neonPinkSoft, 0.65);
   drawHeart(dc, cx + plateW * 0.38, cy - plateH * 0.3, 2.4, c.neonPink, 0.85);
 
-  // Extra-visible digits: white soft halo → neon pink glow → deep readable fill
-  const pctFont = Font.heavyRoundedSystemFont(font + 1);
+  // Extra-visible neon-pink digits on a soft white plate
+  const pctFont = Font.heavyRoundedSystemFont(font + 2);
   const pctRect = new Rect(x, y, w, numberH);
-  // White cushion for contrast
+  // White cushion so neon pink pops on any wash
   for (const [ox, oy, a] of [
-    [0, 0, 0.55],
-    [0, 1, 0.35],
-    [0, -1, 0.35],
-    [1, 0, 0.3],
-    [-1, 0, 0.3],
+    [0, 0, 0.7],
+    [0, 1, 0.45],
+    [0, -1, 0.45],
+    [1, 0, 0.4],
+    [-1, 0, 0.4],
+    [0, 2, 0.25],
   ]) {
     drawText(dc, pctStr, new Rect(pctRect.x + ox, pctRect.y + oy, pctRect.width, pctRect.height), {
       font: pctFont,
@@ -496,20 +497,8 @@ function paintPercent(dc, L, c, stats) {
     font: pctFont,
     colorHex: c.neonPinkSoft,
     align: "center",
-    glow: 0.6,
+    glow: 0.65,
     finalHex: c.neonPink,
-  });
-  // Crisp top layer for max readability
-  drawText(dc, pctStr, pctRect, {
-    font: pctFont,
-    color: hex(c.inkDeep, 0.92),
-    align: "center",
-  });
-  // Neon pink kiss on top (slightly inset feel via second pass)
-  drawText(dc, pctStr, new Rect(x, y - 0.4, w, numberH), {
-    font: pctFont,
-    color: hex(c.neonPink, 0.88),
-    align: "center",
   });
 
   if (showCaptionHere && captionH > 0) {
@@ -527,10 +516,12 @@ function paintCaptionBand(dc, L, c) {
   const { x, y, w, h } = L.caption;
   softBlob(dc, x + w / 2, y + h / 2, Math.max(w * 0.4, 18), c.sakuraSoft, 0.18);
   const capFont = L.family === "extraLarge" ? 12 : 9;
-  drawText(dc, CONFIG.percentCaption, new Rect(x, y, w, h), {
+  glowText(dc, CONFIG.percentCaption, new Rect(x, y, w, h), {
     font: Font.mediumRoundedSystemFont(capFont),
-    color: hex(c.inkSoft, 0.95),
+    colorHex: c.neonPinkSoft,
     align: "center",
+    glow: 0.35,
+    finalHex: c.neonPink,
   });
 }
 
