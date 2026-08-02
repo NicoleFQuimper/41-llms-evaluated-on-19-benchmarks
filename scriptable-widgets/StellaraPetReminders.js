@@ -172,14 +172,17 @@ function hex(h, a = 1) {
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
-function mixHex(a, b, t) {
-  const pa = a.replace("#", "");
-  const pb = b.replace("#", "");
-  const n = (s, i) => parseInt(s.slice(i, i + 2), 16);
-  const r = Math.round(lerp(n(pa, 0), n(pb, 0), t));
-  const g = Math.round(lerp(n(pa, 2), n(pb, 2), t));
-  const b = Math.round(lerp(n(pa, 4), n(pb, 4), t));
-  return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
+function mixHex(hexA, hexB, t) {
+  const pa = String(hexA).replace("#", "");
+  const pb = String(hexB).replace("#", "");
+  const ch = (s, i) => parseInt(s.slice(i, i + 2), 16);
+  const rr = Math.round(lerp(ch(pa, 0), ch(pb, 0), t));
+  const gg = Math.round(lerp(ch(pa, 2), ch(pb, 2), t));
+  const bb = Math.round(lerp(ch(pa, 4), ch(pb, 4), t));
+  return (
+    "#" +
+    [rr, gg, bb].map((v) => v.toString(16).padStart(2, "0")).join("")
+  );
 }
 function cyberGradient(t, c) {
   if (t < 1 / 3) return mixHex(c.gYellow, c.gPink, t * 3);
