@@ -753,7 +753,7 @@ function paintDayFocus(dc, w, h, family, stats, c) {
   // Left column: pet podium + mood + tiny week spark
   const leftPanel = { x: pad, y: bodyTop, w: leftW, h: bodyH * 0.62 };
   paintChromePanel(dc, leftPanel, c, { radius: 16 });
-  drawText(dc, "buddy // live", new Rect(leftPanel.x + 36, leftPanel.y + 8, leftPanel.w - 44, 12), {
+  drawText(dc, "buddy // yr hp", new Rect(leftPanel.x + 36, leftPanel.y + 8, leftPanel.w - 44, 12), {
     font: Font.semiboldRoundedSystemFont(8),
     color: hex(c.mute, 0.95),
     align: "left",
