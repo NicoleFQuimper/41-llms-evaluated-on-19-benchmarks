@@ -327,8 +327,85 @@ function moodCopy(mood, focusLabel) {
   }
 }
 
-function drawPet(dc, cx, cy, scale, mood, c) {
+/** Classic pixel heart (filled or empty outline). x/y = top-left. */
+function drawPixelHeart(dc, x, y, px, colorHex, filled) {
+  // 7×6 pixel heart
+  const map = filled
+    ? ["0110110", "1111111", "1111111", "0111110", "0011100", "0001000"]
+    : ["0110110", "1001001", "1000001", "0100010", "0010100", "0001000"];
+  for (let row = 0; row < map.length; row++) {
+    for (let col = 0; col < map[row].length; col++) {
+      if (map[row][col] !== "1") continue;
+      dc.setFillColor(hex(colorHex, filled ? 1 : 0.55));
+      dc.fillRect(new Rect(x + col * px, y + row * px, px, px));
+    }
+  }
+}
+
+/** Year success rate → 0–4 hearts (the pet’s HP). */
+function heartsFromYearRate(rate) {
+  if (rate === null) return 0;
+  return Math.max(0, Math.min(4, Math.round(rate * 4)));
+}
+
+/**
+ * Circular health bay above the pet — 4 pixel hearts.
+ * Health = yearly reminder success rate (the important bar).
+ */
+function drawHealthBay(dc, cx, cy, radius, yearRate, c) {
+  const filled = heartsFromYearRate(yearRate);
+
+  // Soft aura + circular compartment
+  softBlob(dc, cx, cy, radius * 1.35, c.sakuraSoft, 0.35);
+  softBlob(dc, cx, cy, radius * 1.05, c.gPink, 0.18);
+  dc.setFillColor(hex("#fff7fb", 0.92));
+  dc.fillEllipse(new Rect(cx - radius, cy - radius, radius * 2, radius * 2));
+  dc.setStrokeColor(hex(c.neonPinkSoft, 0.55));
+  dc.setLineWidth(2.2);
+  dc.strokeEllipse(new Rect(cx - radius, cy - radius, radius * 2, radius * 2));
+  dc.setStrokeColor(hex(c.lav, 0.35));
+  dc.setLineWidth(1);
+  dc.strokeEllipse(
+    new Rect(cx - radius + 3, cy - radius + 3, (radius - 3) * 2, (radius - 3) * 2)
+  );
+
+  // Tiny HP label
+  drawText(dc, "YR HP", new Rect(cx - radius, cy - radius + 4, radius * 2, 10), {
+    font: Font.boldRoundedSystemFont(Math.max(6, radius * 0.22)),
+    color: hex(c.mute, 0.95),
+    align: "center",
+  });
+
+  // 4 pixel hearts in a neat row inside the circle
+  const px = Math.max(1.35, radius * 0.11);
+  const heartW = 7 * px;
+  const heartH = 6 * px;
+  const gap = Math.max(1.5, px * 0.7);
+  const totalW = heartW * 4 + gap * 3;
+  let hx = cx - totalW / 2;
+  const hy = cy - heartH * 0.25;
+  for (let i = 0; i < 4; i++) {
+    const on = i < filled;
+    drawPixelHeart(dc, hx, hy, px, on ? c.neonPink : c.dimStroke, on);
+    if (on) softBlob(dc, hx + heartW / 2, hy + heartH / 2, px * 2.2, c.neonPinkSoft, 0.35);
+    hx += heartW + gap;
+  }
+
+  // Tiny success hint under hearts
+  drawText(dc, pctLabel(yearRate), new Rect(cx - radius, cy + radius * 0.45, radius * 2, 10), {
+    font: Font.heavyRoundedSystemFont(Math.max(7, radius * 0.24)),
+    color: hex(c.neonPink, 0.95),
+    align: "center",
+  });
+}
+
+function drawPet(dc, cx, cy, scale, mood, c, yearRate = null) {
   const s = scale;
+
+  // Health bay floats above the head (year success = HP)
+  const bayR = Math.max(16, s * 0.55);
+  drawHealthBay(dc, cx, cy - s * 1.22, bayR, yearRate, c);
+
   const aura =
     mood === "sparkle"
       ? c.gYellow
@@ -590,7 +667,7 @@ function paintDayFocus(dc, w, h, family, stats, c) {
 
   if (family === "small") {
     // Compact: pet + % stacked tight
-    drawPet(dc, pad + 32, pad + 55, 20, mood, c);
+    drawPet(dc, pad + 32, pad + 62, 18, mood, c, stats.year.rate);
     paintNeonPct(dc, pad + 60, pad + 30, w - pad * 2 - 60, 34, pctLabel(stats.day.rate), c, 26);
     drawText(dc, `${stats.day.done}/${stats.day.total} done`, new Rect(pad + 60, pad + 62, w - pad * 2 - 60, 12), {
       font: Font.mediumRoundedSystemFont(8),
@@ -637,7 +714,7 @@ function paintDayFocus(dc, w, h, family, stats, c) {
     // Left pet | right hero | bottom 3 cards spanning full width
     const topH = bodyH * 0.58;
     const petW = 100;
-    drawPet(dc, pad + 48, bodyTop + topH * 0.48, 30, mood, c);
+    drawPet(dc, pad + 48, bodyTop + topH * 0.55, 28, mood, c, stats.year.rate);
 
     const hero = { x: pad + petW, y: bodyTop, w: w - pad * 2 - petW, h: topH };
     paintChromePanel(dc, hero, c, { radius: 14 });
@@ -682,7 +759,15 @@ function paintDayFocus(dc, w, h, family, stats, c) {
     align: "left",
   });
   const petScale = family === "extraLarge" ? 54 : 50;
-  drawPet(dc, leftPanel.x + leftPanel.w / 2, leftPanel.y + leftPanel.h * 0.48, petScale, mood, c);
+  drawPet(
+    dc,
+    leftPanel.x + leftPanel.w / 2,
+    leftPanel.y + leftPanel.h * 0.55,
+    petScale * 0.92,
+    mood,
+    c,
+    stats.year.rate
+  );
   drawText(dc, moodCopy(mood, "today"), new Rect(leftPanel.x + 8, leftPanel.y + leftPanel.h - 28, leftPanel.w - 16, 22), {
     font: Font.mediumRoundedSystemFont(8),
     color: hex(c.inkSoft, 0.92),
@@ -775,7 +860,15 @@ function paintWeekFocus(dc, w, h, family, stats, c) {
 
   const gap = 8;
   const topH = (bodyBottom - bodyTop - gap) * 0.62;
-  drawPet(dc, pad + 40, bodyTop + topH * 0.5, family === "large" ? 42 : 28, mood, c);
+  drawPet(
+    dc,
+    pad + 40,
+    bodyTop + topH * 0.55,
+    family === "large" ? 38 : 26,
+    mood,
+    c,
+    stats.year.rate
+  );
   paintStatCard(
     dc,
     { x: pad + 88, y: bodyTop, w: w - pad * 2 - 88, h: topH },
@@ -812,7 +905,15 @@ function paintSingleFocus(dc, w, h, family, stats, c, mode) {
   }
 
   const leftW = family === "large" || family === "extraLarge" ? w * 0.32 : 100;
-  drawPet(dc, pad + leftW * 0.45, (bodyTop + bodyBottom) / 2, family === "large" ? 48 : 32, mood, c);
+  drawPet(
+    dc,
+    pad + leftW * 0.45,
+    (bodyTop + bodyBottom) / 2 + 8,
+    family === "large" ? 42 : 28,
+    mood,
+    c,
+    stats.year.rate
+  );
   paintStatCard(
     dc,
     { x: pad + leftW, y: bodyTop, w: w - pad * 2 - leftW, h: bodyBottom - bodyTop },
@@ -847,7 +948,15 @@ function paintPanel(dc, w, h, family, stats, c) {
 
   // Day featured top, week+month bottom — full bleed
   const topH = (bodyBottom - bodyTop - gap) * 0.58;
-  drawPet(dc, pad + 36, bodyTop + topH * 0.55, family === "large" ? 40 : 26, mood, c);
+  drawPet(
+    dc,
+    pad + 36,
+    bodyTop + topH * 0.58,
+    family === "large" ? 36 : 24,
+    mood,
+    c,
+    stats.year.rate
+  );
   paintStatCard(
     dc,
     { x: pad + 78, y: bodyTop, w: w - pad * 2 - 78, h: topH },
