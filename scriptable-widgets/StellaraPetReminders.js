@@ -7,7 +7,7 @@
 // Tracks completed / set reminders (success rate)
 // for today · week · month · year.
 //
-// VERSION: 2026-08-02-mixhex-fix
+// VERSION: 2026-08-02-snap-bands
 // (if your Scriptable file does not say that, you have an old paste)
 //
 // Widget Parameter:
@@ -355,63 +355,47 @@ function heartsFromYearRate(rate) {
 }
 
 /**
- * Circular health bay above the pet — 4 pixel hearts.
- * Health = yearly reminder success rate (the important bar).
+ * Circular health bay — 4 pixel hearts.
+ * Health = yearly reminder success rate.
  */
 function drawHealthBay(dc, cx, cy, radius, yearRate, c) {
   const filled = heartsFromYearRate(yearRate);
-
-  // Soft aura + circular compartment
-  softBlob(dc, cx, cy, radius * 1.35, c.sakuraSoft, 0.35);
-  softBlob(dc, cx, cy, radius * 1.05, c.gPink, 0.18);
-  dc.setFillColor(hex("#fff7fb", 0.92));
+  softBlob(dc, cx, cy, radius * 1.25, c.sakuraSoft, 0.3);
+  dc.setFillColor(hex("#fff7fb", 0.95));
   dc.fillEllipse(new Rect(cx - radius, cy - radius, radius * 2, radius * 2));
   dc.setStrokeColor(hex(c.neonPinkSoft, 0.55));
-  dc.setLineWidth(2.2);
+  dc.setLineWidth(Math.max(1.2, radius * 0.08));
   dc.strokeEllipse(new Rect(cx - radius, cy - radius, radius * 2, radius * 2));
-  dc.setStrokeColor(hex(c.lav, 0.35));
-  dc.setLineWidth(1);
-  dc.strokeEllipse(
-    new Rect(cx - radius + 3, cy - radius + 3, (radius - 3) * 2, (radius - 3) * 2)
-  );
 
-  // Tiny HP label
-  drawText(dc, "YR HP", new Rect(cx - radius, cy - radius + 4, radius * 2, 10), {
-    font: Font.boldRoundedSystemFont(Math.max(6, radius * 0.22)),
+  drawText(dc, "YR HP", new Rect(cx - radius, cy - radius + 2, radius * 2, 9), {
+    font: Font.boldRoundedSystemFont(Math.max(5.5, radius * 0.2)),
     color: hex(c.mute, 0.95),
     align: "center",
   });
 
-  // 4 pixel hearts in a neat row inside the circle
-  const px = Math.max(1.35, radius * 0.11);
+  const px = Math.max(1.2, radius * 0.1);
   const heartW = 7 * px;
   const heartH = 6 * px;
-  const gap = Math.max(1.5, px * 0.7);
+  const gap = Math.max(1.2, px * 0.55);
   const totalW = heartW * 4 + gap * 3;
   let hx = cx - totalW / 2;
-  const hy = cy - heartH * 0.25;
+  const hy = cy - heartH * 0.2;
   for (let i = 0; i < 4; i++) {
     const on = i < filled;
     drawPixelHeart(dc, hx, hy, px, on ? c.neonPink : c.dimStroke, on);
-    if (on) softBlob(dc, hx + heartW / 2, hy + heartH / 2, px * 2.2, c.neonPinkSoft, 0.35);
     hx += heartW + gap;
   }
 
-  // Tiny success hint under hearts
-  drawText(dc, pctLabel(yearRate), new Rect(cx - radius, cy + radius * 0.45, radius * 2, 10), {
-    font: Font.heavyRoundedSystemFont(Math.max(7, radius * 0.24)),
+  drawText(dc, pctLabel(yearRate), new Rect(cx - radius, cy + radius * 0.42, radius * 2, 9), {
+    font: Font.heavyRoundedSystemFont(Math.max(6.5, radius * 0.22)),
     color: hex(c.neonPink, 0.95),
     align: "center",
   });
 }
 
-function drawPet(dc, cx, cy, scale, mood, c, yearRate = null) {
+/** Pet body only (no HP bay). */
+function drawPetBody(dc, cx, cy, scale, mood, c) {
   const s = scale;
-
-  // Health bay floats above the head (year success = HP)
-  const bayR = Math.max(16, s * 0.55);
-  drawHealthBay(dc, cx, cy - s * 1.22, bayR, yearRate, c);
-
   const aura =
     mood === "sparkle"
       ? c.gYellow
@@ -422,8 +406,8 @@ function drawPet(dc, cx, cy, scale, mood, c, yearRate = null) {
           : mood === "sleepy"
             ? c.gBlue
             : c.sakuraSoft;
-  softBlob(dc, cx, cy, s * 1.45, aura, 0.32);
-  softBlob(dc, cx, cy + s * 0.08, s * 1.1, c.petBody, 0.4);
+  softBlob(dc, cx, cy, s * 1.35, aura, 0.28);
+  softBlob(dc, cx, cy + s * 0.08, s * 1.05, c.petBody, 0.35);
 
   dc.setFillColor(hex(c.petBody, 1));
   dc.fillEllipse(new Rect(cx - s * 0.9, cy - s * 0.78, s * 1.8, s * 1.7));
@@ -479,6 +463,89 @@ function drawPet(dc, cx, cy, scale, mood, c, yearRate = null) {
   }
 }
 
+/**
+ * Auto-fit pet + HP bay inside a rect (no overflow / no overlap outside).
+ * Snaps scale so bay sits above pet and both stay in bounds.
+ */
+function drawPetBundle(dc, rect, mood, c, yearRate) {
+  const { x, y, w, h } = rect;
+  if (w < 20 || h < 28) return;
+
+  // Vertical stack budget: bay diameter + gap + pet (ears→chin ≈ 2.05*s)
+  // Keep a clear gap so bay never collides with header above the rect.
+  const bayGap = 3;
+  let s = Math.min(w / 2.2, h / 3.25);
+  s = Math.max(10, Math.min(s, 44));
+  let bayR = Math.max(10, Math.min(s * 0.46, w * 0.4, h * 0.26));
+
+  let totalH = bayR * 2 + bayGap + s * 2.05;
+  if (totalH > h - 1) {
+    const k = (h - 1) / totalH;
+    s *= k;
+    bayR *= k;
+    totalH = bayR * 2 + bayGap + s * 2.05;
+  }
+
+  const cx = x + w / 2;
+  const top = y + Math.max(0, (h - totalH) / 2);
+  const bayCy = top + bayR;
+  // Pet center sits below bay with ear clearance (ears reach ~1.1*s above center)
+  const petCy = Math.min(bayCy + bayR + bayGap + s * 1.1, y + h - s * 0.95);
+
+  drawHealthBay(dc, cx, bayCy, bayR, yearRate, c);
+  drawPetBody(dc, cx, petCy, s, mood, c);
+}
+
+/**
+ * Split [top, bottom) into exclusive bands by weight + minimum heights.
+ * Bands never overlap; if mins exceed space, mins shrink proportionally.
+ */
+function snapBands(top, bottom, specs) {
+  const H = Math.max(0, bottom - top);
+  const n = specs.length;
+  if (!n || H <= 0) return specs.map(() => ({ y: top, h: 0 }));
+
+  let mins = specs.map((s) => Math.max(0, s.min || 0));
+  let minSum = mins.reduce((a, b) => a + b, 0);
+  if (minSum > H) {
+    const k = H / minSum;
+    mins = mins.map((m) => m * k);
+    minSum = H;
+  }
+  const leftover = H - minSum;
+  const weights = specs.map((s) => Math.max(0, s.weight == null ? 1 : s.weight));
+  const wSum = weights.reduce((a, b) => a + b, 0) || 1;
+  const heights = mins.map((m, i) => m + leftover * (weights[i] / wSum));
+
+  const bands = [];
+  let y = top;
+  for (let i = 0; i < n; i++) {
+    bands.push({ y, h: heights[i] });
+    y += heights[i];
+  }
+  // Absorb float drift into last band
+  if (bands.length) {
+    const drift = bottom - (bands[bands.length - 1].y + bands[bands.length - 1].h);
+    bands[bands.length - 1].h += drift;
+  }
+  return bands;
+}
+
+/** Exclusive chrome bands (header / body / footer) that never overlap. */
+function bandLayout(w, h, family) {
+  const pad = family === "small" ? 8 : family === "medium" ? 9 : 12;
+  const headerH = family === "small" ? 20 : family === "medium" ? 24 : 26;
+  const footerH = family === "small" ? 0 : family === "medium" ? 12 : 14;
+  const gap = family === "medium" ? 4 : 6;
+  const top = pad;
+  const bottom = h - pad;
+  const headerY = top;
+  const footerY = footerH ? bottom - footerH : bottom;
+  const bodyTop = headerY + headerH + 2;
+  const bodyBottom = footerY - (footerH ? 2 : 0);
+  return { pad, gap, headerH, footerH, headerY, bodyTop, bodyBottom, footerY, w, h, family };
+}
+
 // ─── Size ────────────────────────────────────────────────────
 
 function widgetSizeFor(family) {
@@ -510,30 +577,33 @@ function paintBackground(dc, w, h, c) {
   );
 }
 
-function paintHeader(dc, pad, w, c, modeLabel, statusRight) {
-  drawHeart(dc, pad + 7, pad + 8, 6, c.neonPink, 1);
-  glowText(dc, CONFIG.name, new Rect(pad + 18, pad, w * 0.55, 15), {
-    font: Font.boldRoundedSystemFont(12),
+function paintHeader(dc, L, c, modeLabel, statusRight) {
+  const { pad, headerY, w, headerH } = L;
+  drawHeart(dc, pad + 6, headerY + 7, 5.2, c.neonPink, 1);
+  glowText(dc, CONFIG.name, new Rect(pad + 16, headerY, w * 0.55, 14), {
+    font: Font.boldRoundedSystemFont(11),
     colorHex: c.neonPinkSoft,
     align: "left",
-    glow: 0.5,
+    glow: 0.45,
     finalHex: c.neonPink,
   });
-  drawText(dc, modeLabel, new Rect(pad, pad, w - pad * 2, 13), {
-    font: Font.semiboldRoundedSystemFont(9),
+  drawText(dc, modeLabel, new Rect(pad, headerY, w - pad * 2, 12), {
+    font: Font.semiboldRoundedSystemFont(8),
     color: hex(c.mute, 0.95),
     align: "right",
   });
-  drawText(dc, CONFIG.tagline, new Rect(pad, pad + 15, w * 0.62, 12), {
-    font: Font.mediumRoundedSystemFont(8),
-    color: hex(c.mute, 0.9),
-    align: "left",
-  });
-  drawText(dc, statusRight || "sys ♥ online", new Rect(pad, pad + 15, w - pad * 2, 12), {
-    font: Font.mediumRoundedSystemFont(8),
-    color: hex(c.neonPinkSoft, 0.9),
-    align: "right",
-  });
+  if (headerH >= 24) {
+    drawText(dc, CONFIG.tagline, new Rect(pad, headerY + 13, w * 0.58, 11), {
+      font: Font.mediumRoundedSystemFont(7.5),
+      color: hex(c.mute, 0.9),
+      align: "left",
+    });
+    drawText(dc, statusRight || "sys ♥ online", new Rect(pad, headerY + 13, w - pad * 2, 11), {
+      font: Font.mediumRoundedSystemFont(7.5),
+      color: hex(c.neonPinkSoft, 0.9),
+      align: "right",
+    });
+  }
 }
 
 function paintSuccessBar(dc, x, y, w, h, rate, c) {
@@ -612,36 +682,100 @@ function paintMissionList(dc, rect, titles, c) {
 
 function paintStatCard(dc, rect, label, stat, c, { featured = false } = {}) {
   const { x, y, w, h } = rect;
-  paintChromePanel(dc, rect, c, { radius: featured ? 16 : 12, glow: featured });
-  const topPad = 16; // under chrome dots
-  drawText(dc, label.toUpperCase(), new Rect(x + 10, y + topPad - 2, w - 20, 12), {
-    font: Font.semiboldRoundedSystemFont(featured ? 9 : 8),
+  if (h < 22 || w < 28) return;
+
+  const compact = h < 48;
+  const tight = h < 38;
+  paintChromePanel(dc, rect, c, {
+    radius: Math.min(compact ? 10 : 12, h * 0.22),
+    glow: featured && h > 60,
+  });
+
+  const inset = compact ? 6 : 8;
+  const barH = featured && h >= 60 ? 8 : h >= 50 ? 5 : 3.5;
+  const barY = y + h - inset - barH;
+  const innerBottom = barY - 2;
+  const chromeTop = tight ? 4 : compact ? 6 : 12; // room under traffic dots
+  const innerTop = y + chromeTop;
+
+  if (tight) {
+    // One row: LABEL · done … pct   + bar
+    drawText(dc, label.toUpperCase(), new Rect(x + inset, innerTop, w * 0.42, 11), {
+      font: Font.semiboldRoundedSystemFont(6.5),
+      color: hex(c.mute, 0.95),
+      align: "left",
+    });
+    drawText(dc, `${stat.done}/${stat.total}`, new Rect(x + inset, innerTop + 10, w * 0.42, 10), {
+      font: Font.mediumRoundedSystemFont(6.5),
+      color: hex(c.inkSoft, 0.95),
+      align: "left",
+    });
+    const pctH = Math.max(12, innerBottom - innerTop);
+    paintNeonPct(dc, x + w * 0.35, innerTop, w * 0.62, pctH, pctLabel(stat.rate), c, Math.min(14, pctH * 0.85));
+    paintSuccessBar(dc, x + inset, barY, w - inset * 2, barH, stat.rate === null ? 0 : stat.rate, c);
+    return;
+  }
+
+  if (compact) {
+    // Label + done on top strip, pct fills middle, bar pinned bottom — never overflows
+    const topBand = 12;
+    drawText(dc, label.toUpperCase(), new Rect(x + inset, innerTop, w * 0.55, 10), {
+      font: Font.semiboldRoundedSystemFont(7),
+      color: hex(c.mute, 0.95),
+      align: "left",
+    });
+    drawText(dc, `${stat.done}/${stat.total} done`, new Rect(x + inset, innerTop, w - inset * 2, 10), {
+      font: Font.mediumRoundedSystemFont(6.5),
+      color: hex(c.inkSoft, 0.9),
+      align: "right",
+    });
+    const pctTop = innerTop + topBand;
+    const pctH = Math.max(12, innerBottom - pctTop);
+    if (pctH >= 12) {
+      paintNeonPct(dc, x, pctTop, w, pctH, pctLabel(stat.rate), c, Math.min(featured ? 20 : 15, pctH * 0.8));
+    }
+    paintSuccessBar(dc, x + inset, barY, w - inset * 2, barH, stat.rate === null ? 0 : stat.rate, c);
+    return;
+  }
+
+  // Comfortable card — exclusive vertical stack inside panel
+  const labelH = 11;
+  const doneH = 11;
+  const labelY = innerTop;
+  const doneY = innerBottom - doneH;
+  const pctTop = labelY + labelH + 1;
+  const pctBottom = doneY - 1;
+  const pctH = Math.max(0, pctBottom - pctTop);
+  const pctSize = Math.min(featured ? 28 : 16, Math.max(11, pctH * 0.7));
+
+  drawText(dc, label.toUpperCase(), new Rect(x + inset, labelY, w - inset * 2, labelH), {
+    font: Font.semiboldRoundedSystemFont(8),
     color: hex(c.mute, 0.95),
     align: "left",
   });
-  paintNeonPct(dc, x, y + topPad + 10, w, featured ? 36 : 26, pctLabel(stat.rate), c, featured ? 30 : 18);
-  drawText(dc, `${stat.done}/${stat.total} done`, new Rect(x + 10, y + topPad + (featured ? 48 : 36), w - 20, 12), {
-    font: Font.mediumRoundedSystemFont(featured ? 10 : 8),
+
+  if (pctH >= 14) {
+    paintNeonPct(dc, x, pctTop, w, pctH, pctLabel(stat.rate), c, pctSize);
+  }
+
+  drawText(dc, `${stat.done}/${stat.total} done`, new Rect(x + inset, doneY, w - inset * 2, doneH), {
+    font: Font.mediumRoundedSystemFont(7.5),
     color: hex(c.inkSoft, 0.95),
     align: "left",
   });
-  const barY = y + h - (featured ? 28 : 22);
-  paintSuccessBar(dc, x + 10, barY, w - 20, featured ? 9 : 6, stat.rate === null ? 0 : stat.rate, c);
-  drawText(dc, "success rate", new Rect(x + 10, barY + (featured ? 10 : 7), w - 20, 10), {
-    font: Font.mediumRoundedSystemFont(6.5),
-    color: hex(c.mute, 0.8),
-    align: "left",
-  });
+
+  paintSuccessBar(dc, x + inset, barY, w - inset * 2, barH, stat.rate === null ? 0 : stat.rate, c);
 }
 
-function paintFooter(dc, pad, w, h, text, c) {
-  fillRoundRect(dc, new Rect(pad, h - pad - 16, w - pad * 2, 16), 8, hex(c.dim, 0.7));
-  drawText(dc, `> ${text}`, new Rect(pad + 8, h - pad - 14, w - pad * 2 - 16, 12), {
-    font: Font.mediumRoundedSystemFont(7.5),
+function paintFooter(dc, L, text, c) {
+  if (!L.footerH) return;
+  const { pad, footerY, w } = L;
+  fillRoundRect(dc, new Rect(pad, footerY, w - pad * 2, L.footerH), 7, hex(c.dim, 0.75));
+  drawText(dc, `> ${text}`, new Rect(pad + 7, footerY + 1, w - pad * 2 - 20, L.footerH - 2), {
+    font: Font.mediumRoundedSystemFont(7),
     color: hex(c.inkSoft, 0.9),
     align: "left",
   });
-  drawSpark(dc, w - pad - 12, h - pad - 8, 1.3, c.star, 0.7);
 }
 
 function modeChip(mode) {
@@ -664,319 +798,250 @@ function focusOf(stats, mode) {
   return { key: "day", title: "TODAY", stat: stats.day };
 }
 
-// ─── Layouts (space-maxed) ───────────────────────────────────
+// ─── Layouts (exclusive bands — auto-snap, no overlap) ───────
 
-function paintDayFocus(dc, w, h, family, stats, c) {
-  const pad = family === "small" ? 9 : 12;
-  const mood = moodFrom(stats.day.rate);
-  paintHeader(dc, pad, w, c, modeChip("day"), `${stats.day.done}/${stats.day.total} today`);
+function paintHeroToday(dc, rect, stats, c, { showMissions = false } = {}) {
+  const { x, y, w, h } = rect;
+  if (h < 32) return;
+  const compact = h < 56;
+  paintChromePanel(dc, rect, c, { radius: compact ? 10 : 12, glow: !compact });
+  drawText(dc, compact ? "TODAY // detail" : "TODAY // full detail", new Rect(x + 34, y + (compact ? 5 : 7), w - 42, 11), {
+    font: Font.semiboldRoundedSystemFont(compact ? 7 : 8),
+    color: hex(c.mute, 0.95),
+    align: "left",
+  });
 
-  if (family === "small") {
-    // Compact: pet + % stacked tight
-    drawPet(dc, pad + 32, pad + 62, 18, mood, c, stats.year.rate);
-    paintNeonPct(dc, pad + 60, pad + 30, w - pad * 2 - 60, 34, pctLabel(stats.day.rate), c, 26);
-    drawText(dc, `${stats.day.done}/${stats.day.total} done`, new Rect(pad + 60, pad + 62, w - pad * 2 - 60, 12), {
+  const inset = compact ? 8 : 10;
+  const barH = compact ? 5 : 7;
+  const barY = y + h - inset - barH;
+  const doneH = 11;
+  const doneY = barY - doneH - 1;
+  const pctTop = y + (compact ? 16 : 20);
+  const pctH = Math.max(14, doneY - pctTop - 1);
+
+  if (showMissions && w > 180 && h >= 70) {
+    const leftW = w * 0.48;
+    paintNeonPct(dc, x, pctTop, leftW, Math.min(44, pctH), pctLabel(stats.day.rate), c, Math.min(34, pctH * 0.85));
+    drawText(dc, `${stats.day.done}/${stats.day.total} cleared`, new Rect(x + inset, doneY, leftW - inset * 2, doneH), {
       font: Font.mediumRoundedSystemFont(8),
       color: hex(c.inkSoft, 0.95),
       align: "center",
     });
-    paintSuccessBar(dc, pad, pad + 78, w - pad * 2, 7, stats.day.rate === null ? 0 : stats.day.rate, c);
-    // mini strip
-    const y = pad + 92;
-    const cw = (w - pad * 2 - 8) / 3;
+    paintSuccessBar(dc, x + inset, barY, leftW - inset * 2, barH, stats.day.rate === null ? 0 : stats.day.rate, c);
+    paintMissionList(dc, { x: x + leftW, y: y + 18, w: w - leftW - 8, h: h - 26 }, stats.day.titles, c);
+  } else {
+    paintNeonPct(dc, x, pctTop, w, Math.min(compact ? 28 : 36, pctH), pctLabel(stats.day.rate), c, Math.min(compact ? 22 : 28, pctH * 0.8));
+    drawText(dc, `${stats.day.done}/${stats.day.total} missions cleared`, new Rect(x + inset, doneY, w - inset * 2, doneH), {
+      font: Font.mediumRoundedSystemFont(compact ? 7 : 8),
+      color: hex(c.inkSoft, 0.95),
+      align: "center",
+    });
+    paintSuccessBar(dc, x + inset, barY, w - inset * 2, barH, stats.day.rate === null ? 0 : stats.day.rate, c);
+  }
+}
+
+function paintDayFocus(dc, w, h, family, stats, c) {
+  const L = bandLayout(w, h, family);
+  const mood = moodFrom(stats.day.rate);
+  paintHeader(dc, L, c, modeChip("day"), `${stats.day.done}/${stats.day.total} today`);
+
+  const gap = L.gap;
+  // Auto-snap top (pet+hero) vs bottom (week/month/year) so nothing collides
+  const [topBand] = snapBands(L.bodyTop, L.bodyBottom, [
+    { min: family === "medium" ? 52 : family === "small" ? 48 : 90, weight: family === "medium" ? 1.35 : 1.55 },
+    { min: family === "medium" ? 36 : family === "small" ? 32 : 48, weight: 1 },
+  ]);
+  // Gap reserved between top (pet+hero) and bottom cards — exclusive bands, no overlap
+  const topH = Math.max(0, topBand.h - gap * 0.5);
+  const cardY = topBand.y + topH + gap;
+  const cardH = Math.max(0, L.bodyBottom - cardY);
+
+  if (family === "small") {
+    const petW = 58;
+    drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, stats.year.rate);
+    paintHeroToday(
+      dc,
+      { x: L.pad + petW + 4, y: topBand.y, w: w - L.pad * 2 - petW - 4, h: topH },
+      stats,
+      c
+    );
+    const cw = (w - L.pad * 2 - gap * 2) / 3;
     ["week", "month", "year"].forEach((k, i) => {
-      const st = stats[k];
-      fillRoundRect(dc, new Rect(pad + i * (cw + 4), y, cw, h - y - pad), 8, hex(c.dim, 0.75));
-      drawText(dc, k, new Rect(pad + i * (cw + 4), y + 3, cw, 10), {
-        font: Font.semiboldRoundedSystemFont(7),
-        color: hex(c.mute, 0.95),
-        align: "center",
-      });
-      glowText(dc, pctLabel(st.rate), new Rect(pad + i * (cw + 4), y + 14, cw, 16), {
-        font: Font.heavyRoundedSystemFont(11),
-        colorHex: c.neonPinkSoft,
-        align: "center",
-        glow: 0.35,
-        finalHex: c.neonPink,
-      });
-      drawText(dc, `${st.done}/${st.total}`, new Rect(pad + i * (cw + 4), y + 30, cw, 10), {
-        font: Font.mediumRoundedSystemFont(7),
-        color: hex(c.inkSoft, 0.9),
-        align: "center",
-      });
+      paintStatCard(dc, { x: L.pad + i * (cw + gap), y: cardY, w: cw, h: cardH }, k, stats[k], c);
     });
     return;
   }
 
-  // MEDIUM / LARGE / XL — fill every band
-  const headerH = 30;
-  const footerH = 18;
-  const gap = 8;
-  const bodyTop = pad + headerH;
-  const bodyBottom = h - pad - footerH - 4;
-  const bodyH = bodyBottom - bodyTop;
+  const petW = family === "extraLarge" ? w * 0.26 : family === "large" ? w * 0.3 : 78;
 
-  if (family === "medium") {
-    // Left pet | right hero | bottom 3 cards spanning full width
-    const topH = bodyH * 0.58;
-    const petW = 100;
-    drawPet(dc, pad + 48, bodyTop + topH * 0.55, 28, mood, c, stats.year.rate);
-
-    const hero = { x: pad + petW, y: bodyTop, w: w - pad * 2 - petW, h: topH };
-    paintChromePanel(dc, hero, c, { radius: 14 });
-    drawText(dc, "TODAY // full detail", new Rect(hero.x + 36, hero.y + 8, hero.w - 46, 12), {
+  if (family === "large" || family === "extraLarge") {
+    const leftPanel = { x: L.pad, y: topBand.y, w: petW, h: topH };
+    paintChromePanel(dc, leftPanel, c, { radius: 14, glow: true });
+    drawText(dc, "buddy // yr hp", new Rect(leftPanel.x + 34, leftPanel.y + 7, leftPanel.w - 40, 11), {
       font: Font.semiboldRoundedSystemFont(8),
       color: hex(c.mute, 0.95),
       align: "left",
     });
-    paintNeonPct(dc, hero.x, hero.y + 18, hero.w, 34, pctLabel(stats.day.rate), c, 28);
-    drawText(dc, `${stats.day.done}/${stats.day.total} missions cleared`, new Rect(hero.x + 12, hero.y + 52, hero.w - 24, 12), {
-      font: Font.mediumRoundedSystemFont(8),
-      color: hex(c.inkSoft, 0.95),
-      align: "center",
-    });
-    paintSuccessBar(dc, hero.x + 12, hero.y + 68, hero.w - 24, 8, stats.day.rate === null ? 0 : stats.day.rate, c);
-
-    const cardY = bodyTop + topH + gap;
-    const cardH = bodyBottom - cardY;
-    const cw = (w - pad * 2 - gap * 2) / 3;
-    [
-      ["week", stats.week],
-      ["month", stats.month],
-      ["year", stats.year],
-    ].forEach(([label, st], i) => {
-      paintStatCard(dc, { x: pad + i * (cw + gap), y: cardY, w: cw, h: cardH }, label, st, c);
-    });
-    paintFooter(dc, pad, w, h, moodCopy(mood, "today"), c);
-    return;
+    drawPetBundle(
+      dc,
+      { x: leftPanel.x + 4, y: leftPanel.y + 18, w: leftPanel.w - 8, h: leftPanel.h - 22 },
+      mood,
+      c,
+      stats.year.rate
+    );
+  } else {
+    // Medium: pet+bay auto-scale strictly inside top band (no header collision)
+    drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, stats.year.rate);
   }
 
-  // LARGE + XL — maximum density console
-  const leftW = family === "extraLarge" ? w * 0.3 : w * 0.36;
-  const rightX = pad + leftW + gap;
-  const rightW = w - rightX - pad;
-
-  // Left column: pet podium + mood + tiny week spark
-  const leftPanel = { x: pad, y: bodyTop, w: leftW, h: bodyH * 0.62 };
-  paintChromePanel(dc, leftPanel, c, { radius: 16 });
-  drawText(dc, "buddy // yr hp", new Rect(leftPanel.x + 36, leftPanel.y + 8, leftPanel.w - 44, 12), {
-    font: Font.semiboldRoundedSystemFont(8),
-    color: hex(c.mute, 0.95),
-    align: "left",
-  });
-  const petScale = family === "extraLarge" ? 54 : 50;
-  drawPet(
-    dc,
-    leftPanel.x + leftPanel.w / 2,
-    leftPanel.y + leftPanel.h * 0.55,
-    petScale * 0.92,
-    mood,
-    c,
-    stats.year.rate
-  );
-  drawText(dc, moodCopy(mood, "today"), new Rect(leftPanel.x + 8, leftPanel.y + leftPanel.h - 28, leftPanel.w - 16, 22), {
-    font: Font.mediumRoundedSystemFont(8),
-    color: hex(c.inkSoft, 0.92),
-    align: "center",
-  });
-
-  // Right top: TODAY hero (fills height with %)
-  const heroH = bodyH * 0.62;
-  const hero = { x: rightX, y: bodyTop, w: rightW, h: heroH };
-  paintChromePanel(dc, hero, c, { radius: 16 });
-  drawText(dc, "TODAY // full detail", new Rect(hero.x + 36, hero.y + 8, hero.w - 46, 12), {
-    font: Font.semiboldRoundedSystemFont(9),
-    color: hex(c.mute, 0.95),
-    align: "left",
-  });
-  paintNeonPct(dc, hero.x, hero.y + 22, hero.w * 0.48, 52, pctLabel(stats.day.rate), c, 42);
-  drawText(dc, `${stats.day.done} / ${stats.day.total}`, new Rect(hero.x + 12, hero.y + 74, hero.w * 0.48 - 12, 14), {
-    font: Font.boldRoundedSystemFont(12),
-    color: hex(c.inkSoft, 0.95),
-    align: "center",
-  });
-  drawText(dc, "cleared · set", new Rect(hero.x + 12, hero.y + 90, hero.w * 0.48 - 12, 12), {
-    font: Font.mediumRoundedSystemFont(8),
-    color: hex(c.mute, 0.9),
-    align: "center",
-  });
-  paintSuccessBar(dc, hero.x + 12, hero.y + 108, hero.w * 0.48 - 12, 11, stats.day.rate === null ? 0 : stats.day.rate, c);
-  drawText(dc, "success rate ♥", new Rect(hero.x + 12, hero.y + 122, hero.w * 0.48 - 12, 12), {
-    font: Font.mediumRoundedSystemFont(8),
-    color: hex(c.mute, 0.85),
-    align: "center",
-  });
-
-  // Mission list on right half of hero
-  paintMissionList(
+  paintHeroToday(
     dc,
     {
-      x: hero.x + hero.w * 0.5,
-      y: hero.y + 22,
-      w: hero.w * 0.48 - 8,
-      h: hero.h - 36,
+      x: L.pad + petW + gap,
+      y: topBand.y,
+      w: w - L.pad * 2 - petW - gap,
+      h: topH,
     },
-    stats.day.titles,
-    c
+    stats,
+    c,
+    { showMissions: family === "large" || family === "extraLarge" }
   );
 
-  // Bottom row: week / month / year — tall cards eating remaining space
-  const cardY = bodyTop + heroH + gap;
-  const cardH = bodyBottom - cardY;
-  const cw = (w - pad * 2 - gap * 2) / 3;
+  const cw = (w - L.pad * 2 - gap * 2) / 3;
   [
     ["week", stats.week],
     ["month", stats.month],
     ["year", stats.year],
   ].forEach(([label, st], i) => {
-    paintStatCard(
-      dc,
-      { x: pad + i * (cw + gap), y: cardY, w: cw, h: Math.max(70, cardH) },
-      label,
-      st,
-      c,
-      { featured: false }
-    );
+    paintStatCard(dc, { x: L.pad + i * (cw + gap), y: cardY, w: cw, h: cardH }, label, st, c);
   });
 
-  // Also fill left bottom under pet with a soft “uptime” card if space
-  const leftBottom = { x: pad, y: cardY, w: leftW, h: cardH };
-  // week/month/year already full width — left is part of that row. Good.
-
-  paintFooter(dc, pad, w, h, moodCopy(mood, "today"), c);
+  paintFooter(dc, L, moodCopy(mood, "today"), c);
 }
 
 function paintWeekFocus(dc, w, h, family, stats, c) {
-  const pad = family === "small" ? 9 : 12;
+  const L = bandLayout(w, h, family);
   const mood = moodFrom(stats.week.rate);
-  paintHeader(dc, pad, w, c, modeChip("week"), `${stats.week.done}/${stats.week.total} week`);
+  paintHeader(dc, L, c, modeChip("week"), `${stats.week.done}/${stats.week.total} week`);
 
-  const headerH = 30;
-  const footerH = family === "small" ? 0 : 18;
-  const bodyTop = pad + headerH;
-  const bodyBottom = h - pad - footerH - (footerH ? 4 : 0);
+  const gap = L.gap;
+  const [topBand, botBand] = snapBands(L.bodyTop, L.bodyBottom, [
+    { min: family === "medium" ? 54 : 48, weight: 1.5 },
+    { min: family === "medium" ? 34 : 36, weight: 1 },
+  ]);
+  const topH = Math.max(0, topBand.h - gap * 0.5);
+  const botY = topBand.y + topH + gap;
+  const botH = Math.max(0, L.bodyBottom - botY);
 
   if (family === "small") {
-    paintStatCard(dc, { x: pad, y: bodyTop, w: w - pad * 2, h: bodyBottom - bodyTop - 40 }, "this week", stats.week, c, {
-      featured: true,
-    });
-    paintStatCard(dc, { x: pad, y: bodyBottom - 36, w: w - pad * 2, h: 36 }, "today", stats.day, c);
+    paintStatCard(
+      dc,
+      { x: L.pad, y: topBand.y, w: w - L.pad * 2, h: topH },
+      "this week",
+      stats.week,
+      c,
+      { featured: true }
+    );
+    paintStatCard(dc, { x: L.pad, y: botY, w: w - L.pad * 2, h: botH }, "today", stats.day, c);
     return;
   }
 
-  const gap = 8;
-  const topH = (bodyBottom - bodyTop - gap) * 0.62;
-  drawPet(
-    dc,
-    pad + 40,
-    bodyTop + topH * 0.55,
-    family === "large" ? 38 : 26,
-    mood,
-    c,
-    stats.year.rate
-  );
+  const petW = family === "large" || family === "extraLarge" ? 100 : 72;
+  drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, stats.year.rate);
   paintStatCard(
     dc,
-    { x: pad + 88, y: bodyTop, w: w - pad * 2 - 88, h: topH },
+    { x: L.pad + petW + gap, y: topBand.y, w: w - L.pad * 2 - petW - gap, h: topH },
     "this week",
     stats.week,
     c,
     { featured: true }
   );
-  const botY = bodyTop + topH + gap;
-  const botH = bodyBottom - botY;
-  const half = (w - pad * 2 - gap) / 2;
-  paintStatCard(dc, { x: pad, y: botY, w: half, h: botH }, "today", stats.day, c);
-  paintStatCard(dc, { x: pad + half + gap, y: botY, w: half, h: botH }, "month", stats.month, c);
-  paintFooter(dc, pad, w, h, moodCopy(mood, "this week"), c);
+  const half = (w - L.pad * 2 - gap) / 2;
+  paintStatCard(dc, { x: L.pad, y: botY, w: half, h: botH }, "today", stats.day, c);
+  paintStatCard(dc, { x: L.pad + half + gap, y: botY, w: half, h: botH }, "month", stats.month, c);
+  paintFooter(dc, L, moodCopy(mood, "this week"), c);
 }
 
 function paintSingleFocus(dc, w, h, family, stats, c, mode) {
-  const pad = family === "small" ? 9 : 12;
+  const L = bandLayout(w, h, family);
   const f = focusOf(stats, mode);
   const mood = moodFrom(f.stat.rate);
-  paintHeader(dc, pad, w, c, modeChip(mode), `${f.stat.done}/${f.stat.total} ${f.key}`);
+  paintHeader(dc, L, c, modeChip(mode), `${f.stat.done}/${f.stat.total} ${f.key}`);
 
-  const headerH = 30;
-  const footerH = family === "small" ? 0 : 18;
-  const bodyTop = pad + headerH;
-  const bodyBottom = h - pad - footerH - (footerH ? 4 : 0);
-  const gap = 8;
-
+  const bodyH = L.bodyBottom - L.bodyTop;
   if (family === "small") {
-    paintStatCard(dc, { x: pad, y: bodyTop, w: w - pad * 2, h: bodyBottom - bodyTop }, f.title, f.stat, c, {
-      featured: true,
-    });
+    paintStatCard(
+      dc,
+      { x: L.pad, y: L.bodyTop, w: w - L.pad * 2, h: bodyH },
+      f.title,
+      f.stat,
+      c,
+      { featured: true }
+    );
     return;
   }
 
-  const leftW = family === "large" || family === "extraLarge" ? w * 0.32 : 100;
-  drawPet(
-    dc,
-    pad + leftW * 0.45,
-    (bodyTop + bodyBottom) / 2 + 8,
-    family === "large" ? 42 : 28,
-    mood,
-    c,
-    stats.year.rate
-  );
+  const petW = family === "large" || family === "extraLarge" ? w * 0.28 : 80;
+  drawPetBundle(dc, { x: L.pad, y: L.bodyTop, w: petW, h: bodyH }, mood, c, stats.year.rate);
   paintStatCard(
     dc,
-    { x: pad + leftW, y: bodyTop, w: w - pad * 2 - leftW, h: bodyBottom - bodyTop },
+    {
+      x: L.pad + petW + L.gap,
+      y: L.bodyTop,
+      w: w - L.pad * 2 - petW - L.gap,
+      h: bodyH,
+    },
     f.title,
     f.stat,
     c,
     { featured: true }
   );
-  paintFooter(dc, pad, w, h, moodCopy(mood, f.key), c);
+  paintFooter(dc, L, moodCopy(mood, f.key), c);
 }
 
 function paintPanel(dc, w, h, family, stats, c) {
-  const pad = family === "small" ? 9 : 12;
+  const L = bandLayout(w, h, family);
   const mood = moodFrom(stats.day.rate);
-  paintHeader(dc, pad, w, c, modeChip("panel"), "today · week · month");
+  paintHeader(dc, L, c, modeChip("panel"), "today · week · month");
 
-  const headerH = 30;
-  const footerH = family === "small" ? 0 : 18;
-  const bodyTop = pad + headerH;
-  const bodyBottom = h - pad - footerH - (footerH ? 4 : 0);
-  const gap = 8;
+  const gap = L.gap;
+  const [topBand] = snapBands(L.bodyTop, L.bodyBottom, [
+    { min: family === "medium" ? 54 : 48, weight: 1.5 },
+    { min: family === "medium" ? 34 : 36, weight: 1 },
+  ]);
+  const topH = Math.max(0, topBand.h - gap * 0.5);
+  const botY = topBand.y + topH + gap;
+  const botH = Math.max(0, L.bodyBottom - botY);
 
   if (family === "small") {
-    const h1 = (bodyBottom - bodyTop - gap) * 0.45;
-    paintStatCard(dc, { x: pad, y: bodyTop, w: w - pad * 2, h: h1 }, "today", stats.day, c, { featured: true });
-    const h2 = bodyBottom - bodyTop - gap - h1;
-    const half = (w - pad * 2 - gap) / 2;
-    paintStatCard(dc, { x: pad, y: bodyTop + h1 + gap, w: half, h: h2 }, "week", stats.week, c);
-    paintStatCard(dc, { x: pad + half + gap, y: bodyTop + h1 + gap, w: half, h: h2 }, "month", stats.month, c);
+    paintStatCard(
+      dc,
+      { x: L.pad, y: topBand.y, w: w - L.pad * 2, h: topH },
+      "today",
+      stats.day,
+      c,
+      { featured: true }
+    );
+    const half = (w - L.pad * 2 - gap) / 2;
+    paintStatCard(dc, { x: L.pad, y: botY, w: half, h: botH }, "week", stats.week, c);
+    paintStatCard(dc, { x: L.pad + half + gap, y: botY, w: half, h: botH }, "month", stats.month, c);
     return;
   }
 
-  // Day featured top, week+month bottom — full bleed
-  const topH = (bodyBottom - bodyTop - gap) * 0.58;
-  drawPet(
-    dc,
-    pad + 36,
-    bodyTop + topH * 0.58,
-    family === "large" ? 36 : 24,
-    mood,
-    c,
-    stats.year.rate
-  );
+  const petW = family === "large" || family === "extraLarge" ? 90 : 70;
+  drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, stats.year.rate);
   paintStatCard(
     dc,
-    { x: pad + 78, y: bodyTop, w: w - pad * 2 - 78, h: topH },
+    { x: L.pad + petW + gap, y: topBand.y, w: w - L.pad * 2 - petW - gap, h: topH },
     "today",
     stats.day,
     c,
     { featured: true }
   );
-  const botY = bodyTop + topH + gap;
-  const botH = bodyBottom - botY;
-  const half = (w - pad * 2 - gap) / 2;
-  paintStatCard(dc, { x: pad, y: botY, w: half, h: botH }, "this week", stats.week, c);
-  paintStatCard(dc, { x: pad + half + gap, y: botY, w: half, h: botH }, "this month", stats.month, c);
-  paintFooter(dc, pad, w, h, moodCopy(mood, "today"), c);
+  const half = (w - L.pad * 2 - gap) / 2;
+  paintStatCard(dc, { x: L.pad, y: botY, w: half, h: botH }, "this week", stats.week, c);
+  paintStatCard(dc, { x: L.pad + half + gap, y: botY, w: half, h: botH }, "this month", stats.month, c);
+  paintFooter(dc, L, moodCopy(mood, "today"), c);
 }
 
 // ─── Render ──────────────────────────────────────────────────
