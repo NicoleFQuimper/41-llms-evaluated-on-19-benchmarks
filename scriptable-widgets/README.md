@@ -43,7 +43,7 @@ The pet’s mood changes with today’s (or the focused period’s) rate.
 ## Updating widgets
 
 1. Select All → Paste the **entire** new file in Scriptable (partial edits keep old bugs).  
-2. Confirm the top `VERSION:` line matches the repo (current pet: `2026-08-02-snap-bands`).  
+2. Confirm the top `VERSION:` line matches the repo (current pet: `2026-08-02-focus-hp`).  
 3. Remove & re-add the Home Screen widget so iOS reloads it.
 
 Layouts use exclusive snap bands so header / pet / hero / cards / footer never overlap across small · medium · large · extraLarge.

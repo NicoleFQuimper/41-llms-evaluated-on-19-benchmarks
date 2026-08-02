@@ -7,7 +7,7 @@
 // Tracks completed / set reminders (success rate)
 // for today · week · month · year.
 //
-// VERSION: 2026-08-02-snap-bands
+// VERSION: 2026-08-02-focus-hp
 // (if your Scriptable file does not say that, you have an old paste)
 //
 // Widget Parameter:
@@ -348,49 +348,30 @@ function drawPixelHeart(dc, x, y, px, colorHex, filled) {
   }
 }
 
-/** Year success rate → 0–4 hearts (the pet’s HP). */
-function heartsFromYearRate(rate) {
+/** Focus success rate → 0–4 hearts (the pet’s HP). */
+function heartsFromRate(rate) {
   if (rate === null) return 0;
   return Math.max(0, Math.min(4, Math.round(rate * 4)));
 }
 
 /**
- * Circular health bay — 4 pixel hearts.
- * Health = yearly reminder success rate.
+ * Floating HP hearts only — no circle / bay.
+ * Rate comes from the widget’s main focus view.
  */
-function drawHealthBay(dc, cx, cy, radius, yearRate, c) {
-  const filled = heartsFromYearRate(yearRate);
-  softBlob(dc, cx, cy, radius * 1.25, c.sakuraSoft, 0.3);
-  dc.setFillColor(hex("#fff7fb", 0.95));
-  dc.fillEllipse(new Rect(cx - radius, cy - radius, radius * 2, radius * 2));
-  dc.setStrokeColor(hex(c.neonPinkSoft, 0.55));
-  dc.setLineWidth(Math.max(1.2, radius * 0.08));
-  dc.strokeEllipse(new Rect(cx - radius, cy - radius, radius * 2, radius * 2));
-
-  drawText(dc, "YR HP", new Rect(cx - radius, cy - radius + 2, radius * 2, 9), {
-    font: Font.boldRoundedSystemFont(Math.max(5.5, radius * 0.2)),
-    color: hex(c.mute, 0.95),
-    align: "center",
-  });
-
-  const px = Math.max(1.2, radius * 0.1);
+function drawFocusHearts(dc, cx, y, scale, focusRate, c) {
+  const filled = heartsFromRate(focusRate);
+  const px = Math.max(1.35, scale * 0.13);
   const heartW = 7 * px;
   const heartH = 6 * px;
-  const gap = Math.max(1.2, px * 0.55);
+  const gap = Math.max(1.4, px * 0.65);
   const totalW = heartW * 4 + gap * 3;
   let hx = cx - totalW / 2;
-  const hy = cy - heartH * 0.2;
   for (let i = 0; i < 4; i++) {
     const on = i < filled;
-    drawPixelHeart(dc, hx, hy, px, on ? c.neonPink : c.dimStroke, on);
+    drawPixelHeart(dc, hx, y, px, on ? c.neonPink : c.dimStroke, on);
     hx += heartW + gap;
   }
-
-  drawText(dc, pctLabel(yearRate), new Rect(cx - radius, cy + radius * 0.42, radius * 2, 9), {
-    font: Font.heavyRoundedSystemFont(Math.max(6.5, radius * 0.22)),
-    color: hex(c.neonPink, 0.95),
-    align: "center",
-  });
+  return heartH;
 }
 
 /** Pet body only (no HP bay). */
@@ -406,8 +387,9 @@ function drawPetBody(dc, cx, cy, scale, mood, c) {
           : mood === "sleepy"
             ? c.gBlue
             : c.sakuraSoft;
-  softBlob(dc, cx, cy, s * 1.35, aura, 0.28);
-  softBlob(dc, cx, cy + s * 0.08, s * 1.05, c.petBody, 0.35);
+  // Soft mood tint only — no hard halo circle behind the pet
+  softBlob(dc, cx, cy + s * 0.05, s * 0.95, aura, 0.16);
+  softBlob(dc, cx, cy + s * 0.1, s * 0.75, c.petBody, 0.22);
 
   dc.setFillColor(hex(c.petBody, 1));
   dc.fillEllipse(new Rect(cx - s * 0.9, cy - s * 0.78, s * 1.8, s * 1.7));
@@ -464,36 +446,32 @@ function drawPetBody(dc, cx, cy, scale, mood, c) {
 }
 
 /**
- * Auto-fit pet + HP bay inside a rect (no overflow / no overlap outside).
- * Snaps scale so bay sits above pet and both stay in bounds.
+ * Auto-fit pet + floating HP hearts inside a rect.
+ * Hearts + mood both use the main focus view’s success rate.
  */
-function drawPetBundle(dc, rect, mood, c, yearRate) {
+function drawPetBundle(dc, rect, mood, c, focusRate) {
   const { x, y, w, h } = rect;
   if (w < 20 || h < 28) return;
 
-  // Vertical stack budget: bay diameter + gap + pet (ears→chin ≈ 2.05*s)
-  // Keep a clear gap so bay never collides with header above the rect.
-  const bayGap = 3;
-  let s = Math.min(w / 2.2, h / 3.25);
-  s = Math.max(10, Math.min(s, 44));
-  let bayR = Math.max(10, Math.min(s * 0.46, w * 0.4, h * 0.26));
+  // Hearts row (~0.9*s) + gap + pet (ears→chin ≈ 2.05*s)
+  const heartGap = 4;
+  let s = Math.min(w / 2.05, h / 2.85);
+  s = Math.max(12, Math.min(s, 48));
+  let heartBand = Math.max(8, s * 0.85);
 
-  let totalH = bayR * 2 + bayGap + s * 2.05;
+  let totalH = heartBand + heartGap + s * 2.05;
   if (totalH > h - 1) {
     const k = (h - 1) / totalH;
     s *= k;
-    bayR *= k;
-    totalH = bayR * 2 + bayGap + s * 2.05;
+    heartBand *= k;
+    totalH = heartBand + heartGap + s * 2.05;
   }
 
   const cx = x + w / 2;
   const top = y + Math.max(0, (h - totalH) / 2);
-  const bayCy = top + bayR;
-  // Pet center sits below bay with ear clearance (ears reach ~1.1*s above center)
-  const petCy = Math.min(bayCy + bayR + bayGap + s * 1.1, y + h - s * 0.95);
-
-  drawHealthBay(dc, cx, bayCy, bayR, yearRate, c);
-  drawPetBody(dc, cx, petCy, s, mood, c);
+  drawFocusHearts(dc, cx, top + Math.max(0, (heartBand - s * 0.7) / 2), s, focusRate, c);
+  const petCy = top + heartBand + heartGap + s * 1.05;
+  drawPetBody(dc, cx, Math.min(petCy, y + h - s * 0.95), s, mood, c);
 }
 
 /**
@@ -856,9 +834,11 @@ function paintDayFocus(dc, w, h, family, stats, c) {
   const cardY = topBand.y + topH + gap;
   const cardH = Math.max(0, L.bodyBottom - cardY);
 
+  const focusRate = stats.day.rate;
+
   if (family === "small") {
     const petW = 58;
-    drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, stats.year.rate);
+    drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, focusRate);
     paintHeroToday(
       dc,
       { x: L.pad + petW + 4, y: topBand.y, w: w - L.pad * 2 - petW - 4, h: topH },
@@ -877,7 +857,7 @@ function paintDayFocus(dc, w, h, family, stats, c) {
   if (family === "large" || family === "extraLarge") {
     const leftPanel = { x: L.pad, y: topBand.y, w: petW, h: topH };
     paintChromePanel(dc, leftPanel, c, { radius: 14, glow: true });
-    drawText(dc, "buddy // yr hp", new Rect(leftPanel.x + 34, leftPanel.y + 7, leftPanel.w - 40, 11), {
+    drawText(dc, "buddy // day hp", new Rect(leftPanel.x + 34, leftPanel.y + 7, leftPanel.w - 40, 11), {
       font: Font.semiboldRoundedSystemFont(8),
       color: hex(c.mute, 0.95),
       align: "left",
@@ -887,11 +867,10 @@ function paintDayFocus(dc, w, h, family, stats, c) {
       { x: leftPanel.x + 4, y: leftPanel.y + 18, w: leftPanel.w - 8, h: leftPanel.h - 22 },
       mood,
       c,
-      stats.year.rate
+      focusRate
     );
   } else {
-    // Medium: pet+bay auto-scale strictly inside top band (no header collision)
-    drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, stats.year.rate);
+    drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, focusRate);
   }
 
   paintHeroToday(
@@ -947,7 +926,7 @@ function paintWeekFocus(dc, w, h, family, stats, c) {
   }
 
   const petW = family === "large" || family === "extraLarge" ? 100 : 72;
-  drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, stats.year.rate);
+  drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, stats.week.rate);
   paintStatCard(
     dc,
     { x: L.pad + petW + gap, y: topBand.y, w: w - L.pad * 2 - petW - gap, h: topH },
@@ -982,7 +961,7 @@ function paintSingleFocus(dc, w, h, family, stats, c, mode) {
   }
 
   const petW = family === "large" || family === "extraLarge" ? w * 0.28 : 80;
-  drawPetBundle(dc, { x: L.pad, y: L.bodyTop, w: petW, h: bodyH }, mood, c, stats.year.rate);
+  drawPetBundle(dc, { x: L.pad, y: L.bodyTop, w: petW, h: bodyH }, mood, c, f.stat.rate);
   paintStatCard(
     dc,
     {
@@ -1029,7 +1008,7 @@ function paintPanel(dc, w, h, family, stats, c) {
   }
 
   const petW = family === "large" || family === "extraLarge" ? 90 : 70;
-  drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, stats.year.rate);
+  drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, stats.day.rate);
   paintStatCard(
     dc,
     { x: L.pad + petW + gap, y: topBand.y, w: w - L.pad * 2 - petW - gap, h: topH },
