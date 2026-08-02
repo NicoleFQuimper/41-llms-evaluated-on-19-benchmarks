@@ -1,37 +1,42 @@
 # Stellara — Magical Girl Year Console
 
-A Scriptable iPhone widget that shows:
+Scriptable iPhone widgets that show:
 
-1. **Year luminosity** — percentage of the year that has passed (hero number)
-2. **Week crystals** — a glowing grid of every week in the year; sealed weeks light up, the current week pulses as a mint crystal, future weeks stay dormant glass
+1. **Year progress %** — how much of the year has passed
+2. **Week grid** — every week sealed / active / still ahead
 
-Aesthetic: magical-girl control panel — deep void, sakura glow, rose-gold shimmer, mint tech accents, star sparks.
+Two themes, same size-safe layouts (nothing overlaps on Small / Medium / Large):
+
+| File | Theme |
+|------|--------|
+| `MagicalYearConsole.js` | **Dark** — void console, sakura glow, mint crystals |
+| `MagicalYearConsoleLight.js` | **Light / kawaii** — candy pastels, hearts, soft blush panel |
 
 ## Install (Scriptable)
 
-1. Install **[Scriptable](https://apps.apple.com/app/scriptable/id1405459188)** from the App Store.
-2. Open Scriptable → tap **+** → paste the contents of `MagicalYearConsole.js`.
-3. Name the script something like `Stellara Year Console` and save.
-4. On your Home Screen: long-press → **Add Widget** → choose **Scriptable**.
-5. Pick **Medium** (best) or **Large** / **Small**.
-6. Long-press the widget → **Edit Widget** → set **Script** to your saved script. Leave **When Interacting** as default (or *Run Script*).
+1. Install **[Scriptable](https://apps.apple.com/app/scriptable/id1405459188)**.
+2. Open Scriptable → **+** → paste one script (or both as separate scripts).
+3. Name them e.g. `Stellara Dark` and `Stellara Light`.
+4. Home Screen → **Add Widget** → **Scriptable** → Medium (best) / Large / Small.
+5. Edit widget → set **Script** to the theme you want.
 
-Run the script inside Scriptable first to preview Small / Medium / Large.
+Run a script inside Scriptable to preview all three sizes.
 
-## What you’ll see
+## Layout notes
+
+- **Small** — compact stack: brand → % → bar → week grid → footer  
+- **Medium** — split layout: % / bar on the left, week grid on the right (avoids vertical crush)  
+- **Large** — full stacked console with room to breathe  
+
+Week orbs stay inside their cells so neighbors never collide.
+
+## Legend
 
 | Element | Meaning |
 |--------|---------|
 | Big `%` | Fraction of the calendar year elapsed |
-| Gradient bar | Same progress, with a leading spark |
-| Filled pink/gold dots | Weeks already completed |
-| Bright mint ring | Current week |
-| Dim glass dots | Weeks still ahead |
+| Gradient bar | Same progress (spark tip on dark, heart tip on light) |
+| Filled dots | Weeks already completed |
+| Ringed mint dot | Current week |
+| Soft empty dots | Weeks still ahead |
 | Footer | Day-of-year and days remaining |
-
-## Tips
-
-- Medium size balances the percentage and the full week grid best.
-- Large gives the crystals more room to breathe.
-- Small keeps the % + a denser 13-column week grid.
-- The widget refreshes about every 3 hours (iOS may delay this).
