@@ -3,11 +3,12 @@
 // icon-color: pink; icon-glyph: heart;
 //
 // ♡ STELLARA — Magical Girl Year Console (LIGHT / KAWAII)
-// Soft candy pastel control panel — extra glowy.
-// Year % + week candy grid. Layouts are size-safe (no overlap).
-// Supports: small, medium, large (iPad big square), extraLarge (iPad XL).
+// Extra-glowy candy console. Size-safe. iPad XL supported.
 //
-// Install: paste into Scriptable → Add Widget → pick this script
+// IMPORTANT: After updating, delete the old script in Scriptable
+// and paste this file fresh (or replace all contents), then
+// long-press the widget → Remove → re-add so iOS reloads it.
+//
 // Dark twin: MagicalYearConsoleDark.js
 
 const CONFIG = {
@@ -17,25 +18,24 @@ const CONFIG = {
   percentCaption: "♡ year sparkle",
   tagline: "stay soft · stay sparkling · you got this",
   colors: {
-    bg0: "#fff7fb",
-    bg1: "#ffe8f4",
+    bg0: "#ffeaf4",
+    bg1: "#fff7fb",
     panel: "#ffffff",
-    sakura: "#ff6fa8",
-    sakuraSoft: "#ff8ec0",
+    sakura: "#ff4f9a",
+    sakuraSoft: "#ff7eb6",
     roseGold: "#ff9eb5",
-    mint: "#6edcc8",
-    mintSoft: "#8fe8d8",
-    star: "#ffc978",
-    lav: "#c9b6ff",
-    peach: "#ffc4a8",
-    ink: "#6b2a4a",
-    inkSoft: "#8a3a5c",
+    mint: "#3fd6bc",
+    mintSoft: "#7aead4",
+    star: "#ffb84d",
+    lav: "#b79bff",
+    peach: "#ffb089",
+    ink: "#9b2258",
+    inkSoft: "#c43a74",
     mute: "#b07a96",
     dim: "#ffe0ec",
     dimStroke: "#f5b8d0",
-    frame: "#ff9ec8",
-    frame2: "#9ae6d8",
-    cloud: "#ffffff",
+    frame: "#ff7eb6",
+    frame2: "#5fdcc8",
   },
 };
 
@@ -65,7 +65,7 @@ function yearStats(now = new Date()) {
   };
 }
 
-// ─── Color helpers ───────────────────────────────────────────
+// ─── Color / draw helpers ────────────────────────────────────
 
 function hex(h, a = 1) {
   return new Color(h, a);
@@ -90,8 +90,6 @@ function mixHex(a, b, t) {
   return "#" + [r, g, bl].map((v) => v.toString(16).padStart(2, "0")).join("");
 }
 
-// ─── Drawing primitives ──────────────────────────────────────
-
 function fillRoundRect(dc, rect, radius, color) {
   const path = new Path();
   path.addRoundedRect(rect, radius, radius);
@@ -109,48 +107,51 @@ function strokeRoundRect(dc, rect, radius, color, width = 1) {
   dc.strokePath();
 }
 
+/** Soft fill bloom — strong enough to read on white. */
 function softBlob(dc, cx, cy, r, colorHex, alpha) {
-  for (let i = 7; i >= 1; i--) {
-    const t = i / 7;
-    const rr = r * (0.55 + t * 0.85);
-    dc.setFillColor(hex(colorHex, alpha * (1 - t) * (1 - t) * 1.15));
+  for (let i = 8; i >= 1; i--) {
+    const t = i / 8;
+    const rr = r * (0.45 + t * 0.95);
+    dc.setFillColor(hex(colorHex, alpha * (1 - t) * (1 - t)));
     dc.fillEllipse(new Rect(cx - rr, cy - rr, rr * 2, rr * 2));
   }
+}
+
+/** Saturated neon rings — the “glow” you can actually see on light UI. */
+function neonAura(dc, cx, cy, r, colorHex, strength = 1) {
+  for (let i = 7; i >= 1; i--) {
+    const grow = i * (2.8 * strength);
+    const a = 0.55 * strength * (1 - i / 8);
+    dc.setStrokeColor(hex(colorHex, a));
+    dc.setLineWidth(2.2 + i * 0.55);
+    dc.strokeEllipse(new Rect(cx - r - grow, cy - r - grow, (r + grow) * 2, (r + grow) * 2));
+  }
+  softBlob(dc, cx, cy, r * 1.6, colorHex, 0.35 * strength);
 }
 
 function glowEllipse(dc, cx, cy, r, colorHex, layers = 6, peakAlpha = 0.55) {
   for (let i = layers; i >= 1; i--) {
     const t = i / layers;
-    const rr = r * (0.5 + t * 1.45);
-    const a = peakAlpha * (1 - t) * (1 - t);
-    dc.setFillColor(hex(colorHex, a));
+    const rr = r * (0.5 + t * 1.5);
+    dc.setFillColor(hex(colorHex, peakAlpha * (1 - t) * (1 - t)));
     dc.fillEllipse(new Rect(cx - rr, cy - rr, rr * 2, rr * 2));
   }
-  dc.setFillColor(hex(colorHex, Math.min(1, peakAlpha + 0.35)));
+  dc.setFillColor(hex(colorHex, Math.min(1, peakAlpha + 0.3)));
   dc.fillEllipse(new Rect(cx - r * 0.55, cy - r * 0.55, r * 1.1, r * 1.1));
 }
 
-function glowRing(dc, cx, cy, r, colorHex, alpha = 0.55) {
-  for (let i = 4; i >= 1; i--) {
-    const grow = i * 1.8;
-    dc.setStrokeColor(hex(colorHex, alpha * (1 - i / 5)));
-    dc.setLineWidth(1.2 + i * 0.35);
-    dc.strokeEllipse(new Rect(cx - r - grow, cy - r - grow, (r + grow) * 2, (r + grow) * 2));
-  }
-}
-
-function drawSpark(dc, x, y, size, colorHex, alpha = 0.85) {
-  softBlob(dc, x, y, size * 1.8, colorHex, alpha * 0.35);
+function drawSpark(dc, x, y, size, colorHex, alpha = 0.9) {
+  softBlob(dc, x, y, size * 2.2, colorHex, alpha * 0.45);
   dc.setFillColor(hex(colorHex, alpha));
   dc.fillEllipse(new Rect(x - size * 0.35, y - size * 0.35, size * 0.7, size * 0.7));
-  dc.setFillColor(hex(colorHex, alpha * 0.55));
-  dc.fillRect(new Rect(x - size * 0.1, y - size, size * 0.2, size * 2));
-  dc.fillRect(new Rect(x - size, y - size * 0.1, size * 2, size * 0.2));
+  dc.setFillColor(hex(colorHex, alpha * 0.6));
+  dc.fillRect(new Rect(x - size * 0.12, y - size, size * 0.24, size * 2));
+  dc.fillRect(new Rect(x - size, y - size * 0.12, size * 2, size * 0.24));
 }
 
-function drawHeart(dc, x, y, size, colorHex, alpha = 0.85) {
+function drawHeart(dc, x, y, size, colorHex, alpha = 0.9) {
   const s = size;
-  softBlob(dc, x, y + s * 0.1, s * 1.1, colorHex, alpha * 0.35);
+  softBlob(dc, x, y + s * 0.1, s * 1.3, colorHex, alpha * 0.4);
   dc.setFillColor(hex(colorHex, alpha));
   dc.fillEllipse(new Rect(x - s * 0.55, y - s * 0.35, s * 0.55, s * 0.55));
   dc.fillEllipse(new Rect(x - s * 0.05, y - s * 0.35, s * 0.55, s * 0.55));
@@ -172,22 +173,25 @@ function drawText(dc, text, rect, { font, color, align = "left" } = {}) {
   dc.drawTextInRect(text, rect);
 }
 
-function glowText(dc, text, rect, { font, colorHex, align = "center", glow = 0.55, finalHex } = {}) {
+/** Pink halo text — final fill stays bright sakura so it looks lit. */
+function glowText(dc, text, rect, { font, colorHex, align = "center", glow = 0.7, finalHex } = {}) {
   const offsets = [
     [0, 0, glow],
-    [0, 1, glow * 0.55],
-    [0, -1, glow * 0.55],
-    [1, 0, glow * 0.45],
-    [-1, 0, glow * 0.45],
-    [0, 2, glow * 0.32],
-    [0, -2, glow * 0.28],
-    [2, 0, glow * 0.28],
-    [-2, 0, glow * 0.28],
-    [1, 1, glow * 0.22],
-    [-1, 1, glow * 0.22],
-    [1, -1, glow * 0.18],
-    [-1, -1, glow * 0.18],
-    [0, 3, glow * 0.14],
+    [0, 1, glow * 0.65],
+    [0, -1, glow * 0.65],
+    [1, 0, glow * 0.55],
+    [-1, 0, glow * 0.55],
+    [0, 2, glow * 0.4],
+    [0, -2, glow * 0.35],
+    [2, 0, glow * 0.35],
+    [-2, 0, glow * 0.35],
+    [1, 1, glow * 0.3],
+    [-1, 1, glow * 0.3],
+    [1, -1, glow * 0.25],
+    [-1, -1, glow * 0.25],
+    [0, 3, glow * 0.18],
+    [3, 0, glow * 0.16],
+    [-3, 0, glow * 0.16],
   ];
   for (const [ox, oy, a] of offsets) {
     drawText(dc, text, new Rect(rect.x + ox, rect.y + oy, rect.width, rect.height), {
@@ -198,53 +202,114 @@ function glowText(dc, text, rect, { font, colorHex, align = "center", glow = 0.5
   }
   drawText(dc, text, rect, {
     font,
-    color: hex(finalHex || CONFIG.colors.ink, 1),
+    color: hex(finalHex || colorHex, 1),
     align,
   });
 }
 
-// ─── Size + layout bands (guaranteed non-overlapping) ────────
+// ─── Layouts (exclusive bands — nothing shares pixels) ───────
 
 function widgetSizeFor(family) {
-  // Logical canvases — Scriptable scales the image to the real widget.
   if (family === "small") return new Size(170, 170);
-  if (family === "large") return new Size(360, 380); // iPad big square + iPhone large
-  if (family === "extraLarge") return new Size(720, 360); // iPad XL / double-wide
-  return new Size(360, 170); // medium
+  if (family === "large") return new Size(360, 380);
+  if (family === "extraLarge") return new Size(720, 360);
+  return new Size(360, 170);
 }
 
+/**
+ * Medium / XL left column (top → bottom, exclusive):
+ *   header → percent → gap → bar → gap → caption → gap → footer
+ * Caption is BELOW the bar so it can never be covered.
+ */
+function splitLayout(family, w, h, opts) {
+  const pad = opts.pad;
+  const colGap = opts.gap;
+  const leftW = Math.floor(w * opts.leftRatio);
+  const rightX = pad + leftW + colGap;
+  const rightW = w - rightX - pad;
+  const top = pad;
+  const bottom = h - pad;
+
+  const headerH = opts.headerH;
+  const footerH = opts.footerH;
+  const barH = opts.barH;
+  const captionH = opts.captionH;
+  const g1 = opts.gapAfterHeader; // header → %
+  const g2 = opts.gapBeforeBar; // % → bar
+  const g3 = opts.gapAfterBar; // bar → caption
+  const g4 = opts.gapBeforeFooter; // caption → footer
+
+  const headerY = top;
+  const footerY = bottom - footerH;
+  const captionY = footerY - g4 - captionH;
+  const barY = captionY - g3 - barH;
+  const percentY = headerY + headerH + g1;
+  const numberH = Math.max(24, barY - g2 - percentY);
+
+  return {
+    family,
+    mode: "split",
+    pad,
+    header: { x: pad, y: headerY, w: leftW, h: headerH },
+    percent: {
+      x: pad,
+      y: percentY,
+      w: leftW,
+      h: numberH,
+      numberH,
+      captionH: 0, // caption is a separate band below the bar
+      font: opts.font,
+      showCaptionHere: false,
+    },
+    bar: { x: pad, y: barY, w: leftW, h: barH },
+    caption: { x: pad, y: captionY, w: leftW, h: captionH },
+    grid: { x: rightX, y: top + 2, w: rightW, h: bottom - top - 2, showLabel: true },
+    footer: { x: pad, y: footerY, w: leftW, h: footerH, showTagline: false },
+    cols: opts.cols,
+    showSubtitle: opts.showSubtitle,
+  };
+}
+
+/** Small / large stack: header → % + caption → gap → bar → grid → footer */
 function stackLayout(family, w, h, opts) {
   const pad = opts.pad;
   const top = pad;
+  const bottom = h - pad;
   const headerH = opts.headerH;
-  const percentH = opts.percentH;
+  const numberH = opts.percentH;
   const captionH = opts.captionH;
   const barH = opts.barH;
   const footerH = opts.footerH;
-  const gap1 = opts.gap1;
-  const gap2 = opts.gap2;
-  const gap3 = opts.gap3;
-  const bottom = h - pad;
+
+  const headerY = top;
+  const percentY = headerY + headerH + opts.gap1;
+  const barY = percentY + numberH + captionH + opts.gap2;
   const footerY = bottom - footerH;
-  const percentY = top + headerH + gap1;
-  const barY = percentY + percentH + captionH + gap2;
-  const gridTop = barY + barH + gap3;
+  const gridTop = barY + barH + opts.gap3;
   const gridBottom = footerY - opts.gridFooterGap;
+
   return {
     family,
     mode: "stack",
     pad,
-    header: { x: pad, y: top, w: w - pad * 2, h: headerH },
+    header: { x: pad, y: headerY, w: w - pad * 2, h: headerH },
     percent: {
       x: pad,
       y: percentY,
       w: w - pad * 2,
-      h: percentH + captionH, // number + caption live inside this band
-      numberH: percentH,
+      h: numberH + captionH,
+      numberH,
       captionH,
       font: opts.font,
+      showCaptionHere: true,
     },
-    bar: { x: pad + (opts.barInset || 0), y: barY, w: w - pad * 2 - (opts.barInset || 0) * 2, h: barH },
+    bar: {
+      x: pad + (opts.barInset || 0),
+      y: barY,
+      w: w - pad * 2 - (opts.barInset || 0) * 2,
+      h: barH,
+    },
+    caption: null,
     grid: {
       x: pad,
       y: gridTop,
@@ -258,60 +323,20 @@ function stackLayout(family, w, h, opts) {
   };
 }
 
-function splitLayout(family, w, h, opts) {
-  const pad = opts.pad;
-  const gap = opts.gap;
-  const leftW = Math.floor(w * opts.leftRatio);
-  const rightX = pad + leftW + gap;
-  const rightW = w - rightX - pad;
-  const top = pad;
-  const bottom = h - pad;
-  const headerH = opts.headerH;
-  const footerH = opts.footerH;
-  const barH = opts.barH;
-  const captionH = opts.captionH;
-  const percentY = top + headerH + opts.afterHeader;
-  const footerY = bottom - footerH;
-  const barY = footerY - opts.beforeFooter - barH;
-  // Reserve caption inside the percent band so it never clips into the bar
-  const percentBandH = Math.max(opts.minPercentBand, barY - percentY - opts.beforeBar);
-  const numberH = Math.max(28, percentBandH - captionH);
-  return {
-    family,
-    mode: "split",
-    pad,
-    header: { x: pad, y: top, w: leftW, h: headerH },
-    percent: {
-      x: pad,
-      y: percentY,
-      w: leftW,
-      h: numberH + captionH,
-      numberH,
-      captionH,
-      font: opts.font,
-    },
-    bar: { x: pad, y: barY, w: leftW, h: barH },
-    grid: { x: rightX, y: top + 2, w: rightW, h: bottom - top - 2, showLabel: true },
-    footer: { x: pad, y: footerY, w: leftW, h: footerH, showTagline: false },
-    cols: opts.cols,
-    showSubtitle: opts.showSubtitle,
-  };
-}
-
 function layoutFor(family, w, h) {
   if (family === "small") {
     return stackLayout(family, w, h, {
       pad: 11,
       headerH: 16,
-      percentH: 36,
-      captionH: 11,
-      barH: 7,
+      percentH: 34,
+      captionH: 12,
+      barH: 8,
       footerH: 12,
       gap1: 4,
-      gap2: 5,
+      gap2: 8,
       gap3: 6,
       gridFooterGap: 4,
-      font: 30,
+      font: 28,
       cols: 13,
       showSubtitle: false,
       showGridLabel: false,
@@ -321,53 +346,51 @@ function layoutFor(family, w, h) {
 
   if (family === "medium") {
     return splitLayout(family, w, h, {
-      pad: 12,
-      gap: 12,
-      leftRatio: 0.42,
-      headerH: 28,
-      footerH: 14,
-      barH: 8,
-      captionH: 13,
-      afterHeader: 4,
-      beforeBar: 6,
-      beforeFooter: 8,
-      minPercentBand: 48,
-      font: 32,
+      pad: 14,
+      gap: 14,
+      leftRatio: 0.4,
+      headerH: 26,
+      footerH: 12,
+      barH: 9,
+      captionH: 14,
+      gapAfterHeader: 2,
+      gapBeforeBar: 6,
+      gapAfterBar: 5,
+      gapBeforeFooter: 3,
+      font: 30,
       cols: 9,
       showSubtitle: true,
     });
   }
 
   if (family === "extraLarge") {
-    // iPad XL — wide extended rectangle: glam left console + roomy candy grid
     return splitLayout(family, w, h, {
-      pad: 20,
-      gap: 18,
+      pad: 22,
+      gap: 20,
       leftRatio: 0.34,
       headerH: 36,
-      footerH: 18,
+      footerH: 16,
       barH: 12,
-      captionH: 16,
-      afterHeader: 8,
-      beforeBar: 10,
-      beforeFooter: 12,
-      minPercentBand: 90,
+      captionH: 18,
+      gapAfterHeader: 8,
+      gapBeforeBar: 10,
+      gapAfterBar: 8,
+      gapBeforeFooter: 6,
       font: 56,
       cols: 14,
       showSubtitle: true,
     });
   }
 
-  // large — iPhone large + iPad big square
   return stackLayout(family, w, h, {
     pad: 18,
     headerH: 36,
-    percentH: 58,
-    captionH: 16,
-    barH: 11,
+    percentH: 56,
+    captionH: 18,
+    barH: 12,
     footerH: 30,
     gap1: 10,
-    gap2: 12,
+    gap2: 14,
     gap3: 14,
     gridFooterGap: 10,
     barInset: 10,
@@ -382,132 +405,152 @@ function layoutFor(family, w, h) {
 // ─── Painters ────────────────────────────────────────────────
 
 function paintBackground(dc, w, h, c) {
+  // Candy wash — pink enough that the “glow world” is obvious
   dc.setFillColor(hex(c.bg0));
   dc.fillRect(new Rect(0, 0, w, h));
 
-  softBlob(dc, w * 0.12, h * 0.08, Math.max(w, h) * 0.55, c.sakuraSoft, 0.32);
-  softBlob(dc, w * 0.92, h * 0.18, Math.max(w, h) * 0.5, c.lav, 0.26);
-  softBlob(dc, w * 0.78, h * 0.95, Math.max(w, h) * 0.52, c.mintSoft, 0.28);
-  softBlob(dc, w * 0.05, h * 0.88, Math.max(w, h) * 0.38, c.peach, 0.24);
-  softBlob(dc, w * 0.5, h * 0.45, Math.max(w, h) * 0.35, c.sakura, 0.1);
+  softBlob(dc, w * 0.1, h * 0.0, Math.max(w, h) * 0.65, c.sakura, 0.45);
+  softBlob(dc, w * 0.95, h * 0.15, Math.max(w, h) * 0.55, c.lav, 0.4);
+  softBlob(dc, w * 0.85, h * 1.0, Math.max(w, h) * 0.6, c.mint, 0.35);
+  softBlob(dc, w * 0.0, h * 0.9, Math.max(w, h) * 0.45, c.peach, 0.35);
+  softBlob(dc, w * 0.5, h * 0.5, Math.max(w, h) * 0.4, c.sakuraSoft, 0.2);
 
   const inset = 4;
-  fillRoundRect(dc, new Rect(inset, inset, w - inset * 2, h - inset * 2), 20, hex(c.panel, 0.5));
-  // Glowing double frame
-  strokeRoundRect(dc, new Rect(inset, inset, w - inset * 2, h - inset * 2), 20, hex(c.frame, 0.35), 3.2);
-  strokeRoundRect(dc, new Rect(inset, inset, w - inset * 2, h - inset * 2), 20, hex(c.frame, 0.75), 1.4);
+  fillRoundRect(dc, new Rect(inset, inset, w - inset * 2, h - inset * 2), 20, hex(c.panel, 0.42));
+
+  // Loud glowing frame
+  strokeRoundRect(dc, new Rect(inset - 1, inset - 1, w - inset * 2 + 2, h - inset * 2 + 2), 21, hex(c.sakura, 0.25), 6);
+  strokeRoundRect(dc, new Rect(inset, inset, w - inset * 2, h - inset * 2), 20, hex(c.frame, 0.55), 3.5);
+  strokeRoundRect(dc, new Rect(inset, inset, w - inset * 2, h - inset * 2), 20, hex(c.sakura, 0.9), 1.5);
   strokeRoundRect(
     dc,
     new Rect(inset + 3, inset + 3, w - (inset + 3) * 2, h - (inset + 3) * 2),
     17,
-    hex(c.frame2, 0.55),
-    1.0
+    hex(c.frame2, 0.65),
+    1.2
   );
 
   const deco = [
-    [0.1, 0.12, "heart", 3.4],
-    [0.9, 0.1, "spark", 1.6],
-    [0.92, 0.88, "heart", 3.0],
-    [0.08, 0.9, "spark", 1.4],
-    [0.5, 0.055, "spark", 1.2],
-    [0.96, 0.45, "spark", 1.1],
+    [0.09, 0.11, "heart", 4.0],
+    [0.91, 0.09, "spark", 2.0],
+    [0.93, 0.88, "heart", 3.6],
+    [0.07, 0.9, "spark", 1.8],
+    [0.5, 0.05, "spark", 1.6],
   ];
   for (const [px, py, kind, s] of deco) {
-    if (kind === "heart") drawHeart(dc, w * px, h * py, s, c.sakuraSoft, 0.7);
-    else drawSpark(dc, w * px, h * py, s, c.star, 0.8);
+    if (kind === "heart") drawHeart(dc, w * px, h * py, s, c.sakura, 0.85);
+    else drawSpark(dc, w * px, h * py, s, c.star, 0.9);
   }
 }
 
 function paintHeader(dc, L, c, stats) {
   const { x, y, w, h } = L.header;
   const small = L.family === "small";
-  const titleSize = L.family === "extraLarge" ? 16 : small ? 11 : 13;
-  glowText(dc, `♡ ${CONFIG.title}`, new Rect(x, y, w * 0.75, small ? h : 16), {
+  const titleSize = L.family === "extraLarge" ? 16 : small ? 11 : 12;
+  glowText(dc, `♡ ${CONFIG.title}`, new Rect(x, y, w * 0.72, small ? h : 15), {
     font: Font.boldRoundedSystemFont(titleSize),
     colorHex: c.sakura,
     align: "left",
-    glow: 0.55,
+    glow: 0.65,
     finalHex: c.ink,
   });
   if (L.showSubtitle) {
-    drawText(dc, CONFIG.subtitle, new Rect(x, y + (L.family === "extraLarge" ? 18 : 16), w * 0.8, 13), {
-      font: Font.mediumRoundedSystemFont(L.family === "extraLarge" ? 10 : 8),
+    drawText(dc, CONFIG.subtitle, new Rect(x, y + (L.family === "extraLarge" ? 18 : 14), w * 0.8, 12), {
+      font: Font.mediumRoundedSystemFont(L.family === "extraLarge" ? 10 : 7.5),
       color: hex(c.mute, 0.95),
       align: "left",
     });
   }
-  glowText(dc, `${stats.year}`, new Rect(x, y, w, small ? h : 15), {
+  glowText(dc, `${stats.year}`, new Rect(x, y, w, small ? h : 14), {
     font: Font.semiboldRoundedSystemFont(L.family === "extraLarge" ? 13 : 10),
     colorHex: c.sakuraSoft,
     align: "right",
-    glow: 0.4,
+    glow: 0.5,
     finalHex: c.sakura,
   });
 }
 
 function paintPercent(dc, L, c, stats) {
-  const { x, y, w, numberH, captionH, font } = L.percent;
+  const { x, y, w, numberH, captionH, font, showCaptionHere } = L.percent;
   const pctStr = `${(stats.pct * 100).toFixed(1)}%`;
   const cx = x + w / 2;
-  const cy = y + numberH * 0.5;
+  const cy = y + numberH * 0.52;
+  const auraR = Math.min(w, numberH) * 0.28;
 
-  // Big luminous bloom behind the %
-  softBlob(dc, cx, cy, Math.min(w, numberH) * 0.85, c.sakuraSoft, 0.4);
-  softBlob(dc, cx, cy, Math.min(w, numberH) * 0.55, c.lav, 0.28);
-  softBlob(dc, cx, cy, Math.min(w, numberH) * 0.35, c.mintSoft, 0.18);
-  glowEllipse(dc, cx, cy, Math.min(w, numberH) * 0.22, c.sakura, 5, 0.35);
+  // Visible neon plate behind the number
+  softBlob(dc, cx, cy, Math.min(w, numberH) * 0.7, c.sakura, 0.5);
+  softBlob(dc, cx, cy, Math.min(w, numberH) * 0.45, c.lav, 0.4);
+  softBlob(dc, cx, cy, Math.min(w, numberH) * 0.28, c.mintSoft, 0.3);
+  neonAura(dc, cx, cy, auraR, c.sakura, 1.15);
+  neonAura(dc, cx, cy, auraR * 0.55, c.lav, 0.7);
 
   glowText(dc, pctStr, new Rect(x, y, w, numberH), {
     font: Font.boldRoundedSystemFont(font),
-    colorHex: c.sakura,
-    align: "center",
-    glow: 0.65,
-    finalHex: c.ink,
-  });
-
-  // Caption stays INSIDE the percent band — never clipped by the bar
-  const capFont = L.family === "small" ? 7 : L.family === "extraLarge" ? 11 : 8;
-  glowText(dc, CONFIG.percentCaption, new Rect(x, y + numberH, w, captionH), {
-    font: Font.mediumRoundedSystemFont(capFont),
     colorHex: c.sakuraSoft,
     align: "center",
-    glow: 0.35,
-    finalHex: c.mute,
+    glow: 0.85,
+    finalHex: c.sakura, // bright lit digits, not flat dark ink
+  });
+
+  if (showCaptionHere && captionH > 0) {
+    const capFont = L.family === "small" ? 7.5 : L.family === "extraLarge" ? 11 : 9;
+    glowText(dc, CONFIG.percentCaption, new Rect(x, y + numberH, w, captionH), {
+      font: Font.mediumRoundedSystemFont(capFont),
+      colorHex: c.sakura,
+      align: "center",
+      glow: 0.45,
+      finalHex: c.inkSoft,
+    });
+  }
+}
+
+function paintCaptionBand(dc, L, c) {
+  if (!L.caption) return;
+  const { x, y, w, h } = L.caption;
+  // Soft glow plate so the label feels lit
+  softBlob(dc, x + w / 2, y + h / 2, Math.max(w * 0.45, 20), c.sakuraSoft, 0.35);
+  const capFont = L.family === "extraLarge" ? 12 : 9;
+  glowText(dc, CONFIG.percentCaption, new Rect(x, y, w, h), {
+    font: Font.mediumRoundedSystemFont(capFont),
+    colorHex: c.sakura,
+    align: "center",
+    glow: 0.55,
+    finalHex: c.inkSoft,
   });
 }
 
 function paintProgressBar(dc, L, c, stats) {
   const { x, y, w, h } = L.bar;
 
-  // Outer glow halo
+  // Glow ONLY downward + sideways — never upward over caption/% 
   for (let i = 4; i >= 1; i--) {
-    const grow = i * 2.4;
+    const grow = i * 2.2;
     fillRoundRect(
       dc,
-      new Rect(x - grow * 0.3, y - grow * 0.45, w + grow * 0.6, h + grow * 0.9),
-      (h + grow) / 2,
-      hex(c.sakuraSoft, 0.08 * (5 - i))
+      new Rect(x - grow * 0.35, y, w + grow * 0.7, h + grow * 0.95),
+      (h + grow * 0.5) / 2,
+      hex(c.sakura, 0.14 * (5 - i))
     );
   }
 
-  fillRoundRect(dc, new Rect(x, y, w, h), h / 2, hex(c.dim, 0.95));
-  strokeRoundRect(dc, new Rect(x, y, w, h), h / 2, hex(c.dimStroke, 0.85), 0.8);
+  fillRoundRect(dc, new Rect(x, y, w, h), h / 2, hex(c.dim, 0.98));
+  strokeRoundRect(dc, new Rect(x, y, w, h), h / 2, hex(c.sakuraSoft, 0.7), 1);
 
   const fillW = Math.max(h, w * stats.pct);
-  const segs = 24;
+  const segs = 28;
   const segW = fillW / segs;
   for (let i = 0; i < segs; i++) {
     const t = i / Math.max(1, segs - 1);
     const col =
       t < 0.5 ? mixHex(c.sakura, c.peach, t * 2) : mixHex(c.peach, c.mint, (t - 0.5) * 2);
-    fillRoundRect(dc, new Rect(x + i * segW, y, segW + 0.5, h), h / 2, hex(col, 0.98));
+    fillRoundRect(dc, new Rect(x + i * segW, y, segW + 0.5, h), h / 2, hex(col, 1));
   }
 
-  // Bright leading glow + heart
+  // Tip glow — mostly to the right / center, slight vertical but short
   const tipX = Math.min(x + fillW, x + w - 1);
-  glowEllipse(dc, tipX, y + h / 2, Math.max(6, h * 1.1), c.sakura, 5, 0.55);
-  glowEllipse(dc, tipX, y + h / 2, Math.max(4, h * 0.7), c.star, 3, 0.45);
-  drawHeart(dc, tipX, y + h / 2 - 0.5, Math.min(4.5, h * 0.9), c.sakura, 0.98);
+  glowEllipse(dc, tipX, y + h / 2, Math.max(5, h * 0.95), c.sakura, 4, 0.65);
+  glowEllipse(dc, tipX, y + h / 2, Math.max(3.5, h * 0.55), c.star, 3, 0.55);
+  drawHeart(dc, tipX, y + h / 2 - 0.4, Math.min(4.2, h * 0.85), c.sakura, 1);
 }
 
 function paintWeekGrid(dc, L, c, stats) {
@@ -543,7 +586,7 @@ function paintWeekGrid(dc, L, c, stats) {
 
   const cols = L.cols;
   const rows = Math.ceil(stats.weeksInYear / cols);
-  const gap = L.family === "large" || L.family === "extraLarge" ? 4.5 : 2.8;
+  const gap = L.family === "large" || L.family === "extraLarge" ? 4.5 : 3;
   const cell = Math.min(
     (g.w - gap * (cols - 1)) / cols,
     (gridH - gap * (rows - 1)) / rows
@@ -560,33 +603,37 @@ function paintWeekGrid(dc, L, c, stats) {
     const row = Math.floor(i / cols);
     const cx = ox + col * (cell + gap) + cell / 2;
     const cy = oy + row * (cell + gap) + cell / 2;
-    const r = cell * 0.33;
+    const r = cell * 0.32;
     const weekNum = i + 1;
 
     if (weekNum <= stats.weeksGone) {
       const t = i / Math.max(1, stats.weeksGone - 1);
       const colHex = mixHex(c.sakura, c.peach, t * 0.7);
-      glowEllipse(dc, cx, cy, r * 0.85, colHex, 4, 0.4);
-      dc.setFillColor(hex(colHex, 0.98));
+      // Visible candy halo
+      softBlob(dc, cx, cy, r * 1.6, colHex, 0.45);
+      dc.setStrokeColor(hex(colHex, 0.55));
+      dc.setLineWidth(1.4);
+      dc.strokeEllipse(new Rect(cx - r * 1.25, cy - r * 1.25, r * 2.5, r * 2.5));
+      dc.setFillColor(hex(colHex, 1));
       dc.fillEllipse(new Rect(cx - r, cy - r, r * 2, r * 2));
-      dc.setFillColor(hex("#ffffff", 0.65));
+      dc.setFillColor(hex("#ffffff", 0.7));
       dc.fillEllipse(new Rect(cx - r * 0.45, cy - r * 0.55, r * 0.55, r * 0.4));
     } else if (weekNum === stats.currentWeek) {
-      glowEllipse(dc, cx, cy, r * 1.05, c.mint, 5, 0.5);
-      glowRing(dc, cx, cy, r * 1.15, c.sakura, 0.45);
-      dc.setFillColor(hex(c.mint, 0.98));
+      neonAura(dc, cx, cy, r * 0.9, c.mint, 0.9);
+      softBlob(dc, cx, cy, r * 1.8, c.sakura, 0.35);
+      dc.setFillColor(hex(c.mint, 1));
       dc.fillEllipse(new Rect(cx - r, cy - r, r * 2, r * 2));
-      dc.setStrokeColor(hex(c.sakura, 0.95));
-      dc.setLineWidth(1.1);
-      const ring = r * 1.22;
+      dc.setStrokeColor(hex(c.sakura, 1));
+      dc.setLineWidth(1.4);
+      const ring = r * 1.28;
       dc.strokeEllipse(new Rect(cx - ring, cy - ring, ring * 2, ring * 2));
-      if (cell >= 7) drawHeart(dc, cx, cy - r * 0.12, r * 0.5, "#ffffff", 0.9);
+      if (cell >= 7) drawHeart(dc, cx, cy - r * 0.1, r * 0.48, "#ffffff", 0.95);
     } else {
       dc.setFillColor(hex(c.dim, 0.95));
       dc.fillEllipse(new Rect(cx - r * 0.85, cy - r * 0.85, r * 1.7, r * 1.7));
-      dc.setStrokeColor(hex(c.dimStroke, 0.8));
-      dc.setLineWidth(0.7);
-      dc.strokeEllipse(new Rect(cx - r * 0.9, cy - r * 0.9, r * 1.8, r * 1.8));
+      dc.setStrokeColor(hex(c.dimStroke, 0.85));
+      dc.setLineWidth(0.8);
+      dc.strokeEllipse(new Rect(cx - r * 0.95, cy - r * 0.95, r * 1.9, r * 1.9));
     }
   }
 }
@@ -612,7 +659,7 @@ function paintFooter(dc, L, c, stats) {
       font: Font.mediumRoundedSystemFont(7.5),
       colorHex: c.sakuraSoft,
       align: "center",
-      glow: 0.3,
+      glow: 0.4,
       finalHex: c.mute,
     });
   }
@@ -635,6 +682,7 @@ function render(family) {
   paintHeader(dc, L, c, stats);
   paintPercent(dc, L, c, stats);
   paintProgressBar(dc, L, c, stats);
+  paintCaptionBand(dc, L, c); // after bar — caption sits in its own band on split layouts
   paintWeekGrid(dc, L, c, stats);
   paintFooter(dc, L, c, stats);
 
@@ -662,7 +710,7 @@ if (config.runsInWidget) {
   const table = new UITable();
   table.showSeparators = false;
   const header = new UITableRow();
-  header.addText(`♡ Stellara Light`, "Tap a size to preview (incl. iPad XL)");
+  header.addText(`♡ Stellara Light`, "Tap a size — re-paste script if widget looks stale");
   table.addRow(header);
   for (const f of ["small", "medium", "large", "extraLarge"]) {
     const row = new UITableRow();
