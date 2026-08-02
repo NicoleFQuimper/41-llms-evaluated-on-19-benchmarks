@@ -7,6 +7,9 @@
 // Tracks completed / set reminders (success rate)
 // for today · week · month · year.
 //
+// VERSION: 2026-08-02-mixhex-fix
+// (if your Scriptable file does not say that, you have an old paste)
+//
 // Widget Parameter:
 //   day | week | month | year | panel | all
 // Default: day (full detail + soft others)
