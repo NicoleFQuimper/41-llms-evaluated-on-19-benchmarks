@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en" data-theme="kawaii">
+  <head>
+    <meta charset="utf-8" />
+    <title>Magical Sectograph</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <meta name="description" content="A 24h sectograph clock for your day, with tickable quests." />
+    <meta name="theme-color" content="#fff0f7" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Sectograph" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/icon-180.png" />
+    <link rel="icon" href="icons/icon-192.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brandblock">
+          <p class="brand" id="brand">✦ MAGICAL SECTOGRAPH ✦</p>
+          <p class="today" id="today">Today</p>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-btn" id="themeBtn" type="button" aria-label="Switch theme">
+            <span id="themeGlyph">✦</span>
+          </button>
+          <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings">
+            ⚙
+          </button>
+        </div>
+      </header>
+
+      <main class="stage">
+        <section class="dialpane">
+          <canvas id="dial" aria-label="24 hour clock of today's events"></canvas>
+        </section>
+
+        <section class="tasks">
+          <div class="tasks-head">
+            <h2 id="tasksTitle">quests</h2>
+            <span class="count" id="taskCount">♡ 0</span>
+          </div>
+
+          <form class="quickadd" id="quickAdd" autocomplete="off">
+            <input
+              id="quickTitle"
+              type="text"
+              placeholder="new quest…"
+              maxlength="120"
+              aria-label="New quest"
+            />
+            <input id="quickTime" type="time" aria-label="Time (optional)" />
+            <button type="submit" class="add-btn" aria-label="Add quest">＋</button>
+          </form>
+
+          <ul class="tasklist" id="taskList"></ul>
+          <p class="empty" id="emptyNote" hidden>all clear, starlight ♡</p>
+        </section>
+      </main>
+
+      <aside class="installtip" id="installTip" hidden>
+        <p id="installText"></p>
+        <button type="button" class="pill" id="installAction" hidden>Install</button>
+        <button type="button" class="x" id="installDismiss" aria-label="Dismiss">×</button>
+      </aside>
+
+      <nav class="bottombar">
+        <button class="pill" id="addEventBtn" type="button">＋ event</button>
+        <button class="pill ghost" id="importBtn" type="button">import calendar</button>
+      </nav>
+    </div>
+
+    <dialog id="taskDialog" class="sheet">
+      <form method="dialog" id="taskForm">
+        <h3 id="taskDialogTitle">Quest</h3>
+        <label>
+          <span>Name</span>
+          <input id="taskTitle" type="text" maxlength="120" required />
+        </label>
+        <label>
+          <span>Time (optional)</span>
+          <input id="taskTime" type="time" />
+        </label>
+        <div class="sheet-actions">
+          <button type="button" class="danger" id="taskDelete">Delete</button>
+          <span class="spacer"></span>
+          <button type="button" class="ghost" id="taskCancel">Cancel</button>
+          <button type="submit" class="primary">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="eventDialog" class="sheet">
+      <form method="dialog" id="eventForm">
+        <h3 id="eventDialogTitle">Event</h3>
+        <label>
+          <span>Name</span>
+          <input id="eventTitle" type="text" maxlength="120" required />
+        </label>
+        <div class="row">
+          <label>
+            <span>Starts</span>
+            <input id="eventStart" type="time" required />
+          </label>
+          <label>
+            <span>Ends</span>
+            <input id="eventEnd" type="time" required />
+          </label>
+        </div>
+        <label class="checkrow">
+          <input id="eventRepeat" type="checkbox" />
+          <span>Every day</span>
+        </label>
+        <p class="hint" id="eventHint" hidden>
+          From an imported calendar, so it can only be changed there.
+        </p>
+        <div class="sheet-actions">
+          <button type="button" class="danger" id="eventDelete">Delete</button>
+          <span class="spacer"></span>
+          <button type="button" class="ghost" id="eventCancel">Cancel</button>
+          <button type="submit" class="primary" id="eventSave">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="settingsDialog" class="sheet">
+      <div>
+        <h3>Settings</h3>
+
+        <div class="setting">
+          <span>Theme</span>
+          <div class="segmented" id="themePicker">
+            <button type="button" data-theme="kawaii">kawaii</button>
+            <button type="button" data-theme="classic">classic</button>
+          </div>
+        </div>
+
+        <div class="setting stacked">
+          <span>Calendars</span>
+          <ul class="callist" id="calendarList"></ul>
+          <div class="calendar-actions">
+            <label class="filebtn">
+              import .ics file
+              <input id="icsFile" type="file" accept=".ics,text/calendar" hidden />
+            </label>
+            <form id="icsUrlForm" class="urlrow">
+              <input
+                id="icsUrl"
+                type="url"
+                inputmode="url"
+                placeholder="https://… .ics subscription link"
+              />
+              <button type="submit">add</button>
+            </form>
+          </div>
+          <p class="hint" id="icsNote">
+            Subscription links only load if the calendar host allows it. If it
+            fails, export the calendar and import the file instead.
+          </p>
+        </div>
+
+        <div class="setting">
+          <span>Finished quests</span>
+          <button type="button" class="ghost" id="clearDone">clear</button>
+        </div>
+
+        <p class="hint">
+          Everything lives on this device only — nothing is uploaded anywhere.
+        </p>
+
+        <div class="sheet-actions">
+          <span class="spacer"></span>
+          <button type="button" class="primary" id="settingsClose">Done</button>
+        </div>
+      </div>
+    </dialog>
+
+    <div class="toast" id="toast" hidden></div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
