@@ -9,6 +9,10 @@ Circular **24-hour sectograph** for iPhone (Scriptable), with a clear split:
 
 Events never appear in the task list. Tasks never appear on the clock.
 
+There is also a **web app** version of the same clock in
+[`../sectograph-web`](../sectograph-web): add it to the Home Screen and its
+hearts tick in place, without bouncing through Scriptable.
+
 ## Themes
 
 | Theme | Task bubbles |
