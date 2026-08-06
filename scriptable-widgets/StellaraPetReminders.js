@@ -7,7 +7,7 @@
 // Tracks completed / set reminders (success rate)
 // for today · week · month · year.
 //
-// VERSION: 2026-08-06-buddy-box
+// VERSION: 2026-08-06-anim-bars
 // (if your Scriptable file does not say that, you have an old paste)
 //
 // Widget Parameter:
@@ -16,6 +16,10 @@
 //
 // Allow Reminders access on first run.
 // Re-paste + remove/re-add widget after updates.
+//
+// The pet idles through 8 poses (bob · blink · wink · sparkle);
+// widgets show the current pose, and running the script in-app
+// offers a looping ♥ ANIMATION preview.
 
 const CONFIG = {
   name: "STELLARA PET",
@@ -354,11 +358,38 @@ function heartsFromRate(rate) {
   return Math.max(0, Math.min(4, Math.round(rate * 4)));
 }
 
+// ─── Idle animation ──────────────────────────────────────────
+
+const ANIM_FRAMES = 8;
+
+/** Pose index that advances over time so each refresh shows a new frame. */
+function animFrame(now) {
+  const ms = now == null ? Date.now() : now;
+  return Math.floor(ms / 30000) % ANIM_FRAMES;
+}
+
+/** Per-frame motion values: bob, sway, blink, twinkle. */
+function animPose(frame, s) {
+  const idx = ((frame % ANIM_FRAMES) + ANIM_FRAMES) % ANIM_FRAMES;
+  const t = idx / ANIM_FRAMES;
+  const tau = Math.PI * 2;
+  return {
+    t,
+    bob: Math.sin(tau * t) * s * 0.07,
+    sway: Math.sin(tau * t + Math.PI / 3) * s * 0.05,
+    squish: 1 + Math.sin(tau * t + Math.PI) * 0.035,
+    blink: idx === 4,
+    wink: idx === 6,
+    twinkle: 0.7 + 0.3 * Math.abs(Math.sin(tau * t * 2)),
+    heartLift: (i) => Math.sin(tau * t + i * 0.7) * 1.3,
+  };
+}
+
 /**
  * Floating HP hearts only — no circle / bay.
  * Always clamped to maxWidth so they never bleed into neighbor panels.
  */
-function drawFocusHearts(dc, cx, y, scale, focusRate, c, maxWidth) {
+function drawFocusHearts(dc, cx, y, scale, focusRate, c, maxWidth, pose) {
   const filled = heartsFromRate(focusRate);
   let px = Math.max(1.2, scale * 0.12);
   let heartW = 7 * px;
@@ -376,15 +407,21 @@ function drawFocusHearts(dc, cx, y, scale, focusRate, c, maxWidth) {
   let hx = cx - totalW / 2;
   for (let i = 0; i < 4; i++) {
     const on = i < filled;
-    drawPixelHeart(dc, hx, y, px, on ? c.neonPink : c.dimStroke, on);
+    const lift = pose && on ? pose.heartLift(i) : 0;
+    if (on) softBlob(dc, hx + heartW / 2, y + heartH / 2 + lift, heartW * 0.85, c.neonPinkSoft, 0.22);
+    drawPixelHeart(dc, hx, y + lift, px, on ? c.neonPink : c.dimStroke, on);
     hx += heartW + gap;
   }
   return { heartH, totalW, px };
 }
 
-/** Pet body only (no HP bay). */
-function drawPetBody(dc, cx, cy, scale, mood, c) {
+/** Pet body with soft idle animation (bob · sway · blink · twinkle). */
+function drawPetBody(dc, cx, baseCy, scale, mood, c, pose) {
   const s = scale;
+  const p = pose || animPose(0, s);
+  const cy = baseCy + p.bob;
+  const bodyW = s * 1.8 * (2 - p.squish);
+  const bodyH = s * 1.7 * p.squish;
   const aura =
     mood === "sparkle"
       ? c.gYellow
@@ -395,40 +432,67 @@ function drawPetBody(dc, cx, cy, scale, mood, c) {
           : mood === "sleepy"
             ? c.gBlue
             : c.sakuraSoft;
-  // Soft mood tint only — no hard halo circle behind the pet
-  softBlob(dc, cx, cy + s * 0.05, s * 0.95, aura, 0.16);
+
+  // Ground shadow shrinks as the pet floats up
+  const shadowScale = 1.1 - p.bob / (s * 0.4);
+  softBlob(dc, cx, baseCy + s * 1.02, s * 0.55 * shadowScale, c.rose, 0.16);
+
+  softBlob(dc, cx, cy + s * 0.05, s * 0.95, aura, 0.18);
   softBlob(dc, cx, cy + s * 0.1, s * 0.75, c.petBody, 0.22);
 
+  // ears (wiggle with sway)
+  const earDrop = Math.abs(p.sway) * 0.35;
   dc.setFillColor(hex(c.petBody, 1));
-  dc.fillEllipse(new Rect(cx - s * 0.9, cy - s * 0.78, s * 1.8, s * 1.7));
+  dc.fillEllipse(new Rect(cx - s * 0.9 - p.sway, cy - s * 1.1 + earDrop, s * 0.58, s * 0.58));
+  dc.fillEllipse(new Rect(cx + s * 0.32 + p.sway, cy - s * 1.1 + earDrop, s * 0.58, s * 0.58));
+  dc.setFillColor(hex(c.petCheek, 0.9));
+  dc.fillEllipse(new Rect(cx - s * 0.76 - p.sway, cy - s * 0.98 + earDrop, s * 0.3, s * 0.3));
+  dc.fillEllipse(new Rect(cx + s * 0.46 + p.sway, cy - s * 0.98 + earDrop, s * 0.3, s * 0.3));
+
+  // head / body
+  dc.setFillColor(hex(c.petBody, 1));
+  dc.fillEllipse(new Rect(cx - bodyW / 2, cy - bodyH * 0.46, bodyW, bodyH));
   dc.setFillColor(hex("#fff5fa", 0.9));
   dc.fillEllipse(new Rect(cx - s * 0.48, cy - s * 0.12, s * 0.96, s * 0.9));
+  // top-light highlight
+  softBlob(dc, cx - s * 0.28, cy - s * 0.52, s * 0.3, "#ffffff", 0.5);
 
-  // ears
-  dc.setFillColor(hex(c.petBody, 1));
-  dc.fillEllipse(new Rect(cx - s * 0.9, cy - s * 1.1, s * 0.58, s * 0.58));
-  dc.fillEllipse(new Rect(cx + s * 0.32, cy - s * 1.1, s * 0.58, s * 0.58));
-  dc.setFillColor(hex(c.petCheek, 0.9));
-  dc.fillEllipse(new Rect(cx - s * 0.76, cy - s * 0.98, s * 0.3, s * 0.3));
-  dc.fillEllipse(new Rect(cx + s * 0.46, cy - s * 0.98, s * 0.3, s * 0.3));
+  // coquette bow on the left ear
+  const bowX = cx - s * 0.62 - p.sway;
+  const bowY = cy - s * 1.02 + earDrop;
+  dc.setFillColor(hex(c.neonPinkSoft, 0.95));
+  dc.fillEllipse(new Rect(bowX - s * 0.2, bowY - s * 0.1, s * 0.2, s * 0.2));
+  dc.fillEllipse(new Rect(bowX + s * 0.02, bowY - s * 0.1, s * 0.2, s * 0.2));
+  dc.setFillColor(hex(c.neonPink, 0.95));
+  dc.fillEllipse(new Rect(bowX - s * 0.05, bowY - s * 0.05, s * 0.1, s * 0.1));
 
   softBlob(dc, cx - s * 0.45, cy + s * 0.14, s * 0.2, c.petCheek, 0.55);
   softBlob(dc, cx + s * 0.45, cy + s * 0.14, s * 0.2, c.petCheek, 0.55);
 
   const eyeY = cy - s * 0.16;
   const eyeDX = s * 0.3;
-  if (mood === "sleepy") {
-    dc.setFillColor(hex(c.petEye, 0.9));
-    dc.fillRect(new Rect(cx - eyeDX - s * 0.13, eyeY, s * 0.26, s * 0.055));
-    dc.fillRect(new Rect(cx + eyeDX - s * 0.13, eyeY, s * 0.26, s * 0.055));
-  } else {
+  const closed = mood === "sleepy" || p.blink;
+  const drawOpenEye = (ex) => {
     dc.setFillColor(hex(c.petEye, 1));
-    dc.fillEllipse(new Rect(cx - eyeDX - s * 0.14, eyeY - s * 0.13, s * 0.28, s * 0.32));
-    dc.fillEllipse(new Rect(cx + eyeDX - s * 0.14, eyeY - s * 0.13, s * 0.28, s * 0.32));
-    // heart-ish shine
+    dc.fillEllipse(new Rect(ex - s * 0.14, eyeY - s * 0.13, s * 0.28, s * 0.32));
     dc.setFillColor(hex("#ffffff", 0.95));
-    dc.fillEllipse(new Rect(cx - eyeDX - s * 0.02, eyeY - s * 0.15, s * 0.11, s * 0.11));
-    dc.fillEllipse(new Rect(cx + eyeDX - s * 0.02, eyeY - s * 0.15, s * 0.11, s * 0.11));
+    dc.fillEllipse(new Rect(ex + s * 0.02, eyeY - s * 0.15, s * 0.11, s * 0.11));
+    dc.setFillColor(hex("#ffffff", 0.7));
+    dc.fillEllipse(new Rect(ex - s * 0.08, eyeY + s * 0.05, s * 0.06, s * 0.06));
+  };
+  const drawClosedEye = (ex) => {
+    dc.setFillColor(hex(c.petEye, 0.9));
+    dc.fillRect(new Rect(ex - s * 0.13, eyeY + s * 0.02, s * 0.26, s * 0.055));
+  };
+  if (closed) {
+    drawClosedEye(cx - eyeDX);
+    drawClosedEye(cx + eyeDX);
+  } else if (p.wink) {
+    drawClosedEye(cx - eyeDX);
+    drawOpenEye(cx + eyeDX);
+  } else {
+    drawOpenEye(cx - eyeDX);
+    drawOpenEye(cx + eyeDX);
   }
 
   dc.setFillColor(hex(c.petEye, 0.85));
@@ -442,14 +506,25 @@ function drawPetBody(dc, cx, cy, scale, mood, c) {
     dc.fillEllipse(new Rect(cx - s * 0.09, cy + s * 0.28, s * 0.18, s * 0.15));
   }
 
+  // little paws peeking at the bottom
+  dc.setFillColor(hex(c.petBody, 1));
+  dc.fillEllipse(new Rect(cx - s * 0.5 + p.sway * 0.5, cy + s * 0.62, s * 0.3, s * 0.22));
+  dc.fillEllipse(new Rect(cx + s * 0.2 - p.sway * 0.5, cy + s * 0.62, s * 0.3, s * 0.22));
+
   if (mood === "sparkle") {
-    drawSpark(dc, cx + s * 0.72, cy - s * 0.55, s * 0.14, c.star, 0.95);
-    drawSpark(dc, cx - s * 0.75, cy - s * 0.28, s * 0.11, c.gYellow, 0.85);
-    drawHeart(dc, cx + s * 0.62, cy + s * 0.48, s * 0.18, c.neonPink, 0.95);
+    drawSpark(dc, cx + s * 0.72, cy - s * 0.55 - p.bob, s * 0.14 * p.twinkle, c.star, 0.95);
+    drawSpark(dc, cx - s * 0.75, cy - s * 0.28 + p.bob, s * 0.12 * (1.4 - p.twinkle), c.gYellow, 0.85);
+    drawHeart(dc, cx + s * 0.62, cy + s * 0.48 - p.bob * 1.5, s * 0.18, c.neonPink, 0.95);
   } else if (mood === "happy") {
-    drawHeart(dc, cx + s * 0.68, cy - s * 0.42, s * 0.18, c.neonPink, 0.9);
+    drawHeart(dc, cx + s * 0.68, cy - s * 0.42 - p.bob * 1.4, s * 0.18 * p.twinkle, c.neonPink, 0.9);
+  } else if (mood === "sleepy") {
+    drawText(dc, "z", new Rect(cx + s * 0.5, cy - s * 1.0 - p.bob, s * 0.8, s * 0.5), {
+      font: Font.boldRoundedSystemFont(Math.max(6, s * 0.32)),
+      color: hex(c.lav, 0.75 * p.twinkle + 0.2),
+      align: "left",
+    });
   } else {
-    drawSpark(dc, cx + s * 0.65, cy - s * 0.42, s * 0.1, c.lav, 0.7);
+    drawSpark(dc, cx + s * 0.65, cy - s * 0.42, s * 0.1 * p.twinkle, c.lav, 0.7);
   }
 }
 
@@ -457,7 +532,7 @@ function drawPetBody(dc, cx, cy, scale, mood, c) {
  * Auto-fit pet + HP hearts inside a rect (never overflows width).
  * Hearts sit above the pet in the same proportional column.
  */
-function drawPetBundle(dc, rect, mood, c, focusRate, { big = false } = {}) {
+function drawPetBundle(dc, rect, mood, c, focusRate, { big = false, frame = null } = {}) {
   const { x, y, w, h } = rect;
   if (w < 18 || h < 24) return;
 
@@ -478,15 +553,16 @@ function drawPetBundle(dc, rect, mood, c, focusRate, { big = false } = {}) {
     totalH = heartBand + heartGap + s * 2.05;
   }
 
+  const pose = animPose(frame == null ? animFrame() : frame, s);
   const cx = x + w / 2;
   const top = y + Math.max(0, (h - totalH) / 2);
-  drawFocusHearts(dc, cx, top + Math.max(0, (heartBand - s * 0.65) / 2), s, focusRate, c, innerW);
+  drawFocusHearts(dc, cx, top + Math.max(0, (heartBand - s * 0.65) / 2), s, focusRate, c, innerW, pose);
   const petCy = top + heartBand + heartGap + s * 1.05;
-  drawPetBody(dc, cx, Math.min(petCy, y + h - s * 0.92), s, mood, c);
+  drawPetBody(dc, cx, Math.min(petCy, y + h - s * 0.92), s, mood, c, pose);
 }
 
 /** Chrome box that owns pet + hearts as one proportional left unit. */
-function paintBuddyPanel(dc, rect, mood, c, focusRate, { title = null, big = false } = {}) {
+function paintBuddyPanel(dc, rect, mood, c, focusRate, { title = null, big = false, frame = null } = {}) {
   const { x, y, w, h } = rect;
   if (w < 24 || h < 28) return;
   paintChromePanel(dc, rect, c, { radius: Math.min(14, w * 0.12), glow: big });
@@ -508,7 +584,7 @@ function paintBuddyPanel(dc, rect, mood, c, focusRate, { title = null, big = fal
     mood,
     c,
     focusRate,
-    { big }
+    { big, frame }
   );
 }
 
@@ -534,7 +610,8 @@ function cardLabel(label, cardW) {
 
 /** Centered shorter success bar inside a card (not edge-to-edge). */
 function paintCardBar(dc, x, y, cardW, barH, rate, c, inset) {
-  const barW = Math.max(18, Math.floor((cardW - inset * 2) * 0.72));
+  const usable = Math.max(14, cardW - inset * 2);
+  const barW = Math.max(14, Math.floor(usable * (cardW < 78 ? 0.92 : 0.72)));
   const barX = x + Math.floor((cardW - barW) / 2);
   paintSuccessBar(dc, barX, y, barW, barH, rate === null ? 0 : rate, c);
 }
@@ -727,20 +804,42 @@ function paintStatCard(dc, rect, label, stat, c, { featured = false } = {}) {
   const { x, y, w, h } = rect;
   if (h < 22 || w < 28) return;
 
-  const compact = h < 48;
-  const tight = h < 38;
+  const narrow = w < 78;
+  const compact = h < 48 || narrow;
+  const tight = h < 34;
   paintChromePanel(dc, rect, c, {
     radius: Math.min(compact ? 10 : 12, h * 0.22),
-    glow: featured && h > 60,
+    glow: featured && h > 60 && !narrow,
   });
 
-  const inset = compact ? 6 : 8;
-  const barH = featured && h >= 60 ? 8 : h >= 50 ? 5 : 3.5;
+  const inset = compact ? 5 : 8;
+  const barH = featured && h >= 60 && !narrow ? 8 : h >= 46 ? 4.5 : 3.5;
   const barY = y + h - inset - barH;
   const innerBottom = barY - 2;
   const chromeTop = tight ? 4 : compact ? 6 : 12;
   const innerTop = y + chromeTop;
   const title = cardLabel(label, w);
+
+  // Narrow column card (small square): stacked + centered, bar always visible
+  if (narrow && !tight) {
+    drawText(dc, title.toUpperCase(), new Rect(x + 2, innerTop, w - 4, 10), {
+      font: Font.semiboldRoundedSystemFont(7),
+      color: hex(c.mute, 0.95),
+      align: "center",
+    });
+    const doneH = 9;
+    const doneY = innerBottom - doneH;
+    const pctTop = innerTop + 10;
+    const pctH = Math.max(11, doneY - pctTop);
+    paintNeonPct(dc, x, pctTop, w, pctH, pctLabel(stat.rate), c, Math.min(15, pctH * 0.85));
+    drawText(dc, `${stat.done}/${stat.total}`, new Rect(x + 2, doneY, w - 4, doneH), {
+      font: Font.mediumRoundedSystemFont(6.5),
+      color: hex(c.inkSoft, 0.95),
+      align: "center",
+    });
+    paintCardBar(dc, x, barY, w, barH, stat.rate, c, inset);
+    return;
+  }
 
   if (tight) {
     drawText(dc, title.toUpperCase(), new Rect(x + inset, innerTop, w * 0.42, 11), {
@@ -845,9 +944,11 @@ function paintHeroToday(dc, rect, stats, c, { showMissions = false } = {}) {
   const { x, y, w, h } = rect;
   if (h < 32) return;
   const compact = h < 56;
-  paintChromePanel(dc, rect, c, { radius: compact ? 10 : 12, glow: !compact });
-  drawText(dc, compact ? "TODAY // detail" : "TODAY // full detail", new Rect(x + 34, y + (compact ? 5 : 7), w - 42, 11), {
-    font: Font.semiboldRoundedSystemFont(compact ? 7 : 8),
+  const narrow = w < 132;
+  paintChromePanel(dc, rect, c, { radius: compact ? 10 : 12, glow: !compact && !narrow });
+  const heroTitle = narrow ? "TODAY" : compact ? "TODAY // detail" : "TODAY // full detail";
+  drawText(dc, heroTitle, new Rect(x + 34, y + (compact ? 5 : 7), w - 38, 11), {
+    font: Font.semiboldRoundedSystemFont(compact || narrow ? 7 : 8),
     color: hex(c.mute, 0.95),
     align: "left",
   });
@@ -872,8 +973,11 @@ function paintHeroToday(dc, rect, stats, c, { showMissions = false } = {}) {
     paintMissionList(dc, { x: x + leftW, y: y + 18, w: w - leftW - 8, h: h - 26 }, stats.day.titles, c);
   } else {
     paintNeonPct(dc, x, pctTop, w, Math.min(compact ? 28 : 36, pctH), pctLabel(stats.day.rate), c, Math.min(compact ? 22 : 28, pctH * 0.8));
-    drawText(dc, `${stats.day.done}/${stats.day.total} missions cleared`, new Rect(x + inset, doneY, w - inset * 2, doneH), {
-      font: Font.mediumRoundedSystemFont(compact ? 7 : 8),
+    const doneText = narrow
+      ? `${stats.day.done}/${stats.day.total} missions`
+      : `${stats.day.done}/${stats.day.total} missions cleared`;
+    drawText(dc, doneText, new Rect(x + inset, doneY, w - inset * 2, doneH), {
+      font: Font.mediumRoundedSystemFont(compact || narrow ? 7 : 8),
       color: hex(c.inkSoft, 0.95),
       align: "center",
     });
@@ -889,16 +993,37 @@ function paintDayFocus(dc, w, h, family, stats, c) {
 
   const gap = L.gap;
 
-  // Small square: hearts + pet only (boxed), no timeline crush
+  // Small square: boxed buddy + today, with week/month/year bars underneath
   if (family === "small") {
+    const [sTop] = snapBands(L.bodyTop, L.bodyBottom, [
+      { min: 62, weight: 1.35 },
+      { min: 44, weight: 1 },
+    ]);
+    const sTopH = Math.max(0, sTop.h - gap * 0.5);
+    const sCardY = sTop.y + sTopH + gap;
+    const sCardH = Math.max(0, L.bodyBottom - sCardY);
+    const sPetW = 62;
     paintBuddyPanel(
       dc,
-      { x: L.pad, y: L.bodyTop, w: w - L.pad * 2, h: L.bodyBottom - L.bodyTop },
+      { x: L.pad, y: sTop.y, w: sPetW, h: sTopH },
       mood,
       c,
-      focusRate,
-      { title: "buddy // hp" }
+      focusRate
     );
+    paintHeroToday(
+      dc,
+      { x: L.pad + sPetW + gap, y: sTop.y, w: w - L.pad * 2 - sPetW - gap, h: sTopH },
+      stats,
+      c
+    );
+    const scw = (w - L.pad * 2 - gap * 2) / 3;
+    [
+      ["week", stats.week],
+      ["month", stats.month],
+      ["year", stats.year],
+    ].forEach(([label, st], i) => {
+      paintStatCard(dc, { x: L.pad + i * (scw + gap), y: sCardY, w: scw, h: sCardH }, label, st, c);
+    });
     return;
   }
 
@@ -955,14 +1080,31 @@ function paintWeekFocus(dc, w, h, family, stats, c) {
   const gap = L.gap;
 
   if (family === "small") {
-    paintBuddyPanel(
+    const [sTop] = snapBands(L.bodyTop, L.bodyBottom, [
+      { min: 62, weight: 1.35 },
+      { min: 44, weight: 1 },
+    ]);
+    const sTopH = Math.max(0, sTop.h - gap * 0.5);
+    const sCardY = sTop.y + sTopH + gap;
+    const sCardH = Math.max(0, L.bodyBottom - sCardY);
+    const sPetW = 62;
+    paintBuddyPanel(dc, { x: L.pad, y: sTop.y, w: sPetW, h: sTopH }, mood, c, stats.week.rate);
+    paintStatCard(
       dc,
-      { x: L.pad, y: L.bodyTop, w: w - L.pad * 2, h: L.bodyBottom - L.bodyTop },
-      mood,
+      { x: L.pad + sPetW + gap, y: sTop.y, w: w - L.pad * 2 - sPetW - gap, h: sTopH },
+      "this week",
+      stats.week,
       c,
-      stats.week.rate,
-      { title: "buddy // week hp" }
+      { featured: true }
     );
+    const scw = (w - L.pad * 2 - gap * 2) / 3;
+    [
+      ["day", stats.day],
+      ["month", stats.month],
+      ["year", stats.year],
+    ].forEach(([label, st], i) => {
+      paintStatCard(dc, { x: L.pad + i * (scw + gap), y: sCardY, w: scw, h: sCardH }, label, st, c);
+    });
     return;
   }
 
@@ -1006,14 +1148,34 @@ function paintSingleFocus(dc, w, h, family, stats, c, mode) {
 
   const bodyH = L.bodyBottom - L.bodyTop;
   if (family === "small") {
-    paintBuddyPanel(
+    const gapS = L.gap;
+    const [sTop] = snapBands(L.bodyTop, L.bodyBottom, [
+      { min: 62, weight: 1.35 },
+      { min: 44, weight: 1 },
+    ]);
+    const sTopH = Math.max(0, sTop.h - gapS * 0.5);
+    const sCardY = sTop.y + sTopH + gapS;
+    const sCardH = Math.max(0, L.bodyBottom - sCardY);
+    const sPetW = 62;
+    paintBuddyPanel(dc, { x: L.pad, y: sTop.y, w: sPetW, h: sTopH }, mood, c, f.stat.rate);
+    paintStatCard(
       dc,
-      { x: L.pad, y: L.bodyTop, w: w - L.pad * 2, h: bodyH },
-      mood,
+      { x: L.pad + sPetW + gapS, y: sTop.y, w: w - L.pad * 2 - sPetW - gapS, h: sTopH },
+      f.title,
+      f.stat,
       c,
-      f.stat.rate,
-      { title: `buddy // ${f.key} hp` }
+      { featured: true }
     );
+    const others = [
+      ["day", stats.day],
+      ["week", stats.week],
+      ["month", stats.month],
+      ["year", stats.year],
+    ].filter(([k]) => k !== f.key);
+    const scw = (w - L.pad * 2 - gapS * 2) / 3;
+    others.forEach(([label, st], i) => {
+      paintStatCard(dc, { x: L.pad + i * (scw + gapS), y: sCardY, w: scw, h: sCardH }, label, st, c);
+    });
     return;
   }
 
@@ -1051,14 +1213,31 @@ function paintPanel(dc, w, h, family, stats, c) {
   const gap = L.gap;
 
   if (family === "small") {
-    paintBuddyPanel(
+    const [sTop] = snapBands(L.bodyTop, L.bodyBottom, [
+      { min: 62, weight: 1.35 },
+      { min: 44, weight: 1 },
+    ]);
+    const sTopH = Math.max(0, sTop.h - gap * 0.5);
+    const sCardY = sTop.y + sTopH + gap;
+    const sCardH = Math.max(0, L.bodyBottom - sCardY);
+    const sPetW = 62;
+    paintBuddyPanel(dc, { x: L.pad, y: sTop.y, w: sPetW, h: sTopH }, mood, c, stats.day.rate);
+    paintStatCard(
       dc,
-      { x: L.pad, y: L.bodyTop, w: w - L.pad * 2, h: L.bodyBottom - L.bodyTop },
-      mood,
+      { x: L.pad + sPetW + gap, y: sTop.y, w: w - L.pad * 2 - sPetW - gap, h: sTopH },
+      "today",
+      stats.day,
       c,
-      stats.day.rate,
-      { title: "buddy // hp" }
+      { featured: true }
     );
+    const scw = (w - L.pad * 2 - gap * 2) / 3;
+    [
+      ["week", stats.week],
+      ["month", stats.month],
+      ["year", stats.year],
+    ].forEach(([label, st], i) => {
+      paintStatCard(dc, { x: L.pad + i * (scw + gap), y: sCardY, w: scw, h: sCardH }, label, st, c);
+    });
     return;
   }
 
@@ -1118,8 +1297,63 @@ async function render(family, mode) {
   const widget = new ListWidget();
   widget.backgroundImage = dc.getImage();
   widget.setPadding(0, 0, 0, 0);
-  widget.refreshAfterDate = new Date(Date.now() + 20 * 60 * 1000);
+  // Shorter window so the pet lands on a new idle pose between refreshes
+  widget.refreshAfterDate = new Date(Date.now() + 10 * 60 * 1000);
   return widget;
+}
+
+/** Looping pet animation preview (in-app only — widgets show one pose). */
+async function presentPetAnimation(mode) {
+  const c = CONFIG.colors;
+  const stats = await gatherStats();
+  const f = focusOf(stats, mode);
+  const mood = moodFrom(f.stat.rate);
+  const side = 260;
+
+  const frames = [];
+  for (let i = 0; i < ANIM_FRAMES; i++) {
+    const dc = new DrawContext();
+    dc.size = new Size(side, side);
+    dc.opaque = false;
+    dc.respectScreenScale = true;
+    paintBackground(dc, side, side, c);
+    paintBuddyPanel(
+      dc,
+      { x: 16, y: 16, w: side - 32, h: side - 32 },
+      mood,
+      c,
+      f.stat.rate,
+      { title: `buddy // ${f.key} hp`, big: true, frame: i }
+    );
+    frames.push(Data.fromPNG(dc.getImage()).toBase64String());
+  }
+
+  const html = `
+    <html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+      body { margin:0; background:${c.bg0}; display:flex; flex-direction:column;
+             align-items:center; justify-content:center; height:100vh;
+             font-family:-apple-system; color:${c.inkSoft}; }
+      #pet { width:min(80vw,320px); image-rendering:auto; }
+      p { font-size:13px; letter-spacing:.04em; }
+    </style></head>
+    <body>
+      <img id="pet" src="data:image/png;base64,${frames[0]}">
+      <p>${f.title.toLowerCase()} · ${pctLabel(f.stat.rate)} · ${moodCopy(mood, f.key)}</p>
+      <script>
+        const frames = ${JSON.stringify(frames)};
+        let i = 0;
+        const img = document.getElementById("pet");
+        setInterval(() => {
+          i = (i + 1) % frames.length;
+          img.src = "data:image/png;base64," + frames[i];
+        }, 140);
+      </script>
+    </body></html>`;
+
+  const wv = new WebView();
+  await wv.loadHTML(html);
+  await wv.present(false);
 }
 
 async function presentFamily(family, widget) {
@@ -1154,6 +1388,10 @@ if (config.runsInWidget) {
     row.dismissOnSelect = false;
     row.onSelect = async () => {
       const pick = new UITable();
+      const anim = new UITableRow();
+      anim.addText("♥ ANIMATION", "Watch the pet idle-loop");
+      anim.onSelect = async () => presentPetAnimation(m);
+      pick.addRow(anim);
       for (const f of ["small", "medium", "large", "extraLarge"]) {
         const r = new UITableRow();
         r.addText(f.toUpperCase(), "Preview");
