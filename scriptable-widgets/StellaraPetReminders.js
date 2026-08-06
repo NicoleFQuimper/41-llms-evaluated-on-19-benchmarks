@@ -7,7 +7,7 @@
 // Tracks completed / set reminders (success rate)
 // for today · week · month · year.
 //
-// VERSION: 2026-08-06-anim-bars
+// VERSION: 2026-08-06-face-v2
 // (if your Scriptable file does not say that, you have an old paste)
 //
 // Widget Parameter:
@@ -48,7 +48,10 @@ const CONFIG = {
     gPurple: "#c084fc",
     gBlue: "#8ecbff",
     petBody: "#ffc9de",
+    petShade: "#ffb4d0",
     petCheek: "#ff8eb8",
+    petLine: "#d1739a",
+    petMouth: "#b8567f",
     petEye: "#5a2a40",
   },
 };
@@ -374,12 +377,13 @@ function animPose(frame, s) {
   const t = idx / ANIM_FRAMES;
   const tau = Math.PI * 2;
   return {
+    frame: idx,
     t,
-    bob: Math.sin(tau * t) * s * 0.07,
-    sway: Math.sin(tau * t + Math.PI / 3) * s * 0.05,
-    squish: 1 + Math.sin(tau * t + Math.PI) * 0.035,
-    blink: idx === 4,
-    wink: idx === 6,
+    bob: Math.sin(tau * t) * s * 0.06,
+    sway: Math.sin(tau * t + Math.PI / 3) * s * 0.035,
+    squish: 1 + Math.sin(tau * t + Math.PI) * 0.03,
+    blink: idx === 5,
+    wink: idx === 2,
     twinkle: 0.7 + 0.3 * Math.abs(Math.sin(tau * t * 2)),
     heartLift: (i) => Math.sin(tau * t + i * 0.7) * 1.3,
   };
@@ -415,13 +419,76 @@ function drawFocusHearts(dc, cx, y, scale, focusRate, c, maxWidth, pose) {
   return { heartH, totalW, px };
 }
 
-/** Pet body with soft idle animation (bob · sway · blink · twinkle). */
+/**
+ * Soft crescent (smile / closed eyelid) made by masking an ellipse with the fur
+ * color. `thickness` is the share of the ellipse left visible (0.2 = thin arc).
+ */
+function drawCrescent(dc, cx, cy, w, h, colorHex, furHex, { flip = false, alpha = 1, thickness = 0.38 } = {}) {
+  dc.setFillColor(hex(colorHex, alpha));
+  dc.fillEllipse(new Rect(cx - w / 2, cy - h / 2, w, h));
+  dc.setFillColor(hex(furHex, 1));
+  // Masking ellipse offset equals the visible slice height
+  const shift = (flip ? -1 : 1) * h * thickness;
+  dc.fillEllipse(new Rect(cx - w / 2, cy - h / 2 + shift, w, h));
+}
+
+/** Coquette ribbon bow — sits on the head, tucked under an ear. */
+function drawBow(dc, bx, by, size, c, tilt = 0) {
+  const b = size;
+  // ribbon tails
+  const tail = new Path();
+  tail.move(new Point(bx - b * 0.1, by + b * 0.1));
+  tail.addLine(new Point(bx - b * 0.75, by + b * 0.95));
+  tail.addLine(new Point(bx - b * 0.18, by + b * 0.62));
+  tail.closeSubpath();
+  tail.move(new Point(bx + b * 0.1, by + b * 0.1));
+  tail.addLine(new Point(bx + b * 0.72, by + b * 0.9));
+  tail.addLine(new Point(bx + b * 0.2, by + b * 0.6));
+  tail.closeSubpath();
+  dc.setFillColor(hex(c.neonPinkSoft, 0.95));
+  dc.addPath(tail);
+  dc.fillPath();
+
+  // loops
+  const loop = new Path();
+  loop.move(new Point(bx - b * 0.08, by));
+  loop.addLine(new Point(bx - b * 1.05, by - b * 0.62 + tilt));
+  loop.addLine(new Point(bx - b * 1.05, by + b * 0.5 + tilt));
+  loop.closeSubpath();
+  loop.move(new Point(bx + b * 0.08, by));
+  loop.addLine(new Point(bx + b * 1.05, by - b * 0.62 - tilt));
+  loop.addLine(new Point(bx + b * 1.05, by + b * 0.5 - tilt));
+  loop.closeSubpath();
+  dc.setFillColor(hex(c.sakura, 1));
+  dc.addPath(loop);
+  dc.fillPath();
+  dc.setFillColor(hex(c.sakura, 1));
+  dc.fillEllipse(new Rect(bx - b * 1.12, by - b * 0.42 + tilt, b * 0.66, b * 0.86));
+  dc.fillEllipse(new Rect(bx + b * 0.46, by - b * 0.42 - tilt, b * 0.66, b * 0.86));
+  // loop shine
+  dc.setFillColor(hex("#ffffff", 0.4));
+  dc.fillEllipse(new Rect(bx - b * 0.95, by - b * 0.3 + tilt, b * 0.3, b * 0.24));
+  dc.fillEllipse(new Rect(bx + b * 0.62, by - b * 0.3 - tilt, b * 0.3, b * 0.24));
+  // knot
+  dc.setFillColor(hex(c.neonPink, 1));
+  dc.fillEllipse(new Rect(bx - b * 0.26, by - b * 0.26, b * 0.52, b * 0.52));
+  dc.setFillColor(hex("#ffffff", 0.45));
+  dc.fillEllipse(new Rect(bx - b * 0.16, by - b * 0.18, b * 0.18, b * 0.14));
+}
+
+/**
+ * Pet face. Everything is measured from the head radius so the
+ * proportions hold at any scale, and the idle poses only change
+ * things a real face would change: bob, ear sway, eyes, mouth.
+ */
 function drawPetBody(dc, cx, baseCy, scale, mood, c, pose) {
   const s = scale;
   const p = pose || animPose(0, s);
   const cy = baseCy + p.bob;
-  const bodyW = s * 1.8 * (2 - p.squish);
-  const bodyH = s * 1.7 * p.squish;
+  const headRX = s * 0.98 * (2 - p.squish);
+  const headRY = s * 0.9 * p.squish;
+  const fur = c.petBody;
+
   const aura =
     mood === "sparkle"
       ? c.gYellow
@@ -433,98 +500,166 @@ function drawPetBody(dc, cx, baseCy, scale, mood, c, pose) {
             ? c.gBlue
             : c.sakuraSoft;
 
-  // Ground shadow shrinks as the pet floats up
-  const shadowScale = 1.1 - p.bob / (s * 0.4);
-  softBlob(dc, cx, baseCy + s * 1.02, s * 0.55 * shadowScale, c.rose, 0.16);
+  // floor shadow shrinks as the pet floats up
+  const lift = p.bob / (s * 0.06);
+  softBlob(dc, cx, baseCy + headRY * 1.12, s * 0.5 * (1 - lift * 0.12), c.rose, 0.18);
+  softBlob(dc, cx, cy, headRX * 1.12, aura, 0.16);
 
-  softBlob(dc, cx, cy + s * 0.05, s * 0.95, aura, 0.18);
-  softBlob(dc, cx, cy + s * 0.1, s * 0.75, c.petBody, 0.22);
+  // ears (tilt with the sway, inner ear follows)
+  const earSway = p.sway;
+  const earR = s * 0.3;
+  const earY = cy - headRY * 0.86;
+  const ears = [
+    { x: cx - headRX * 0.62 - earSway, tilt: -earSway },
+    { x: cx + headRX * 0.62 + earSway, tilt: earSway },
+  ];
+  const line = Math.max(0.7, s * 0.045);
+  for (const e of ears) {
+    const er = new Rect(e.x - earR, earY - earR * 1.1 + Math.abs(e.tilt) * 0.4, earR * 2, earR * 2.1);
+    dc.setFillColor(hex(fur, 1));
+    dc.fillEllipse(er);
+    dc.setStrokeColor(hex(c.petLine, 0.35));
+    dc.setLineWidth(line);
+    dc.strokeEllipse(er);
+    dc.setFillColor(hex(c.petCheek, 0.8));
+    dc.fillEllipse(
+      new Rect(e.x - earR * 0.5, earY - earR * 0.55 + Math.abs(e.tilt) * 0.4, earR, earR * 1.15)
+    );
+  }
 
-  // ears (wiggle with sway)
-  const earDrop = Math.abs(p.sway) * 0.35;
-  dc.setFillColor(hex(c.petBody, 1));
-  dc.fillEllipse(new Rect(cx - s * 0.9 - p.sway, cy - s * 1.1 + earDrop, s * 0.58, s * 0.58));
-  dc.fillEllipse(new Rect(cx + s * 0.32 + p.sway, cy - s * 1.1 + earDrop, s * 0.58, s * 0.58));
-  dc.setFillColor(hex(c.petCheek, 0.9));
-  dc.fillEllipse(new Rect(cx - s * 0.76 - p.sway, cy - s * 0.98 + earDrop, s * 0.3, s * 0.3));
-  dc.fillEllipse(new Rect(cx + s * 0.46 + p.sway, cy - s * 0.98 + earDrop, s * 0.3, s * 0.3));
+  // head
+  const headRect = new Rect(cx - headRX, cy - headRY, headRX * 2, headRY * 2);
+  dc.setFillColor(hex(fur, 1));
+  dc.fillEllipse(headRect);
+  // soft bottom shading + top light
+  dc.setFillColor(hex(c.petShade, 0.45));
+  dc.fillEllipse(new Rect(cx - headRX * 0.82, cy + headRY * 0.16, headRX * 1.64, headRY * 0.78));
+  dc.setFillColor(hex(fur, 1));
+  dc.fillEllipse(new Rect(cx - headRX * 0.86, cy + headRY * 0.04, headRX * 1.72, headRY * 0.78));
+  dc.setStrokeColor(hex(c.petLine, 0.35));
+  dc.setLineWidth(line);
+  dc.strokeEllipse(headRect);
+  softBlob(dc, cx - headRX * 0.42, cy - headRY * 0.58, s * 0.13, "#ffffff", 0.22);
 
-  // head / body
-  dc.setFillColor(hex(c.petBody, 1));
-  dc.fillEllipse(new Rect(cx - bodyW / 2, cy - bodyH * 0.46, bodyW, bodyH));
-  dc.setFillColor(hex("#fff5fa", 0.9));
-  dc.fillEllipse(new Rect(cx - s * 0.48, cy - s * 0.12, s * 0.96, s * 0.9));
-  // top-light highlight
-  softBlob(dc, cx - s * 0.28, cy - s * 0.52, s * 0.3, "#ffffff", 0.5);
+  // bow on the head, tucked just under the right ear
+  drawBow(dc, cx + headRX * 0.58, cy - headRY * 0.42, s * 0.28, c, earSway * 0.3);
 
-  // coquette bow on the left ear
-  const bowX = cx - s * 0.62 - p.sway;
-  const bowY = cy - s * 1.02 + earDrop;
-  dc.setFillColor(hex(c.neonPinkSoft, 0.95));
-  dc.fillEllipse(new Rect(bowX - s * 0.2, bowY - s * 0.1, s * 0.2, s * 0.2));
-  dc.fillEllipse(new Rect(bowX + s * 0.02, bowY - s * 0.1, s * 0.2, s * 0.2));
-  dc.setFillColor(hex(c.neonPink, 0.95));
-  dc.fillEllipse(new Rect(bowX - s * 0.05, bowY - s * 0.05, s * 0.1, s * 0.1));
+  // blush
+  softBlob(dc, cx - headRX * 0.58, cy + headRY * 0.3, s * 0.2, c.petCheek, 0.75);
+  softBlob(dc, cx + headRX * 0.58, cy + headRY * 0.3, s * 0.2, c.petCheek, 0.75);
 
-  softBlob(dc, cx - s * 0.45, cy + s * 0.14, s * 0.2, c.petCheek, 0.55);
-  softBlob(dc, cx + s * 0.45, cy + s * 0.14, s * 0.2, c.petCheek, 0.55);
+  // ── eyes ──────────────────────────────────────────────
+  const eyeDX = headRX * 0.36;
+  const eyeY = cy + headRY * 0.02;
+  const eyeRX = s * 0.19;
+  const eyeRY = s * 0.23;
 
-  const eyeY = cy - s * 0.16;
-  const eyeDX = s * 0.3;
-  const closed = mood === "sleepy" || p.blink;
-  const drawOpenEye = (ex) => {
+  const openEye = (ex, starry) => {
+    dc.setFillColor(hex(c.petLine, 0.28));
+    dc.fillEllipse(new Rect(ex - eyeRX * 1.12, eyeY - eyeRY * 1.1, eyeRX * 2.24, eyeRY * 2.2));
     dc.setFillColor(hex(c.petEye, 1));
-    dc.fillEllipse(new Rect(ex - s * 0.14, eyeY - s * 0.13, s * 0.28, s * 0.32));
-    dc.setFillColor(hex("#ffffff", 0.95));
-    dc.fillEllipse(new Rect(ex + s * 0.02, eyeY - s * 0.15, s * 0.11, s * 0.11));
-    dc.setFillColor(hex("#ffffff", 0.7));
-    dc.fillEllipse(new Rect(ex - s * 0.08, eyeY + s * 0.05, s * 0.06, s * 0.06));
+    dc.fillEllipse(new Rect(ex - eyeRX, eyeY - eyeRY, eyeRX * 2, eyeRY * 2));
+    // iris glow inside the eye
+    dc.setFillColor(hex(c.neonPinkSoft, 0.45));
+    dc.fillEllipse(new Rect(ex - eyeRX * 0.6, eyeY + eyeRY * 0.05, eyeRX * 1.2, eyeRY * 0.9));
+    // sparkles INSIDE the eye
+    dc.setFillColor(hex("#ffffff", 0.98));
+    dc.fillEllipse(
+      new Rect(ex - eyeRX * 0.58, eyeY - eyeRY * 0.6, eyeRX * 0.66, eyeRY * 0.58)
+    );
+    dc.setFillColor(hex("#ffffff", 0.8));
+    dc.fillEllipse(new Rect(ex + eyeRX * 0.18, eyeY + eyeRY * 0.3, eyeRX * 0.36, eyeRY * 0.32));
+    if (starry) {
+      drawSpark(dc, ex + eyeRX * 0.3, eyeY - eyeRY * 0.34, eyeRX * 0.42 * p.twinkle, "#ffffff", 0.95);
+    }
   };
-  const drawClosedEye = (ex) => {
-    dc.setFillColor(hex(c.petEye, 0.9));
-    dc.fillRect(new Rect(ex - s * 0.13, eyeY + s * 0.02, s * 0.26, s * 0.055));
-  };
-  if (closed) {
-    drawClosedEye(cx - eyeDX);
-    drawClosedEye(cx + eyeDX);
-  } else if (p.wink) {
-    drawClosedEye(cx - eyeDX);
-    drawOpenEye(cx + eyeDX);
-  } else {
-    drawOpenEye(cx - eyeDX);
-    drawOpenEye(cx + eyeDX);
-  }
-
-  dc.setFillColor(hex(c.petEye, 0.85));
-  if (mood === "sparkle" || mood === "happy") {
-    dc.fillEllipse(new Rect(cx - s * 0.17, cy + s * 0.24, s * 0.34, s * 0.2));
-    dc.setFillColor(hex(c.petBody, 1));
-    dc.fillEllipse(new Rect(cx - s * 0.17, cy + s * 0.15, s * 0.34, s * 0.18));
-  } else if (mood === "okay" || mood === "idle") {
-    dc.fillEllipse(new Rect(cx - s * 0.07, cy + s * 0.3, s * 0.14, s * 0.11));
-  } else {
-    dc.fillEllipse(new Rect(cx - s * 0.09, cy + s * 0.28, s * 0.18, s * 0.15));
-  }
-
-  // little paws peeking at the bottom
-  dc.setFillColor(hex(c.petBody, 1));
-  dc.fillEllipse(new Rect(cx - s * 0.5 + p.sway * 0.5, cy + s * 0.62, s * 0.3, s * 0.22));
-  dc.fillEllipse(new Rect(cx + s * 0.2 - p.sway * 0.5, cy + s * 0.62, s * 0.3, s * 0.22));
-
-  if (mood === "sparkle") {
-    drawSpark(dc, cx + s * 0.72, cy - s * 0.55 - p.bob, s * 0.14 * p.twinkle, c.star, 0.95);
-    drawSpark(dc, cx - s * 0.75, cy - s * 0.28 + p.bob, s * 0.12 * (1.4 - p.twinkle), c.gYellow, 0.85);
-    drawHeart(dc, cx + s * 0.62, cy + s * 0.48 - p.bob * 1.5, s * 0.18, c.neonPink, 0.95);
-  } else if (mood === "happy") {
-    drawHeart(dc, cx + s * 0.68, cy - s * 0.42 - p.bob * 1.4, s * 0.18 * p.twinkle, c.neonPink, 0.9);
-  } else if (mood === "sleepy") {
-    drawText(dc, "z", new Rect(cx + s * 0.5, cy - s * 1.0 - p.bob, s * 0.8, s * 0.5), {
-      font: Font.boldRoundedSystemFont(Math.max(6, s * 0.32)),
-      color: hex(c.lav, 0.75 * p.twinkle + 0.2),
-      align: "left",
+  // closed lids are thin arcs, not filled blobs
+  const happyClosedEye = (ex) => {
+    drawCrescent(dc, ex, eyeY - eyeRY * 0.1, eyeRX * 2.1, eyeRY * 1.7, c.petEye, fur, {
+      flip: false,
+      thickness: 0.22,
     });
+  };
+  const sleepyClosedEye = (ex) => {
+    drawCrescent(dc, ex, eyeY + eyeRY * 0.25, eyeRX * 1.95, eyeRY * 1.3, c.petEye, fur, {
+      flip: true,
+      thickness: 0.2,
+    });
+  };
+
+  const starry = mood === "sparkle";
+  if (mood === "sleepy") {
+    sleepyClosedEye(cx - eyeDX);
+    sleepyClosedEye(cx + eyeDX);
+  } else if (p.blink) {
+    happyClosedEye(cx - eyeDX);
+    happyClosedEye(cx + eyeDX);
+  } else if (p.wink && (mood === "sparkle" || mood === "happy")) {
+    happyClosedEye(cx - eyeDX);
+    openEye(cx + eyeDX, starry);
   } else {
-    drawSpark(dc, cx + s * 0.65, cy - s * 0.42, s * 0.1 * p.twinkle, c.lav, 0.7);
+    openEye(cx - eyeDX, starry);
+    openEye(cx + eyeDX, starry);
+  }
+
+  // ── mouth ─────────────────────────────────────────────
+  const mouthY = cy + headRY * 0.52;
+  if (mood === "sparkle") {
+    // open grin: flat top, rounded bottom, tiny tongue
+    const mw = s * 0.36;
+    const mh = s * 0.22 * (1 + p.t * 0.12);
+    dc.setFillColor(hex(c.petMouth, 1));
+    dc.fillEllipse(new Rect(cx - mw / 2, mouthY - mh * 0.5, mw, mh));
+    dc.setFillColor(hex(fur, 1));
+    dc.fillEllipse(new Rect(cx - mw / 2, mouthY - mh * 1.02, mw, mh));
+    dc.setFillColor(hex(c.petCheek, 0.95));
+    dc.fillEllipse(new Rect(cx - mw * 0.22, mouthY + mh * 0.06, mw * 0.44, mh * 0.36));
+  } else if (mood === "happy") {
+    drawCrescent(dc, cx, mouthY, s * 0.34, s * 0.26, c.petMouth, fur, { flip: true, thickness: 0.5 });
+  } else if (mood === "okay" || mood === "idle") {
+    // soft ω mouth
+    drawCrescent(dc, cx - s * 0.08, mouthY, s * 0.17, s * 0.15, c.petMouth, fur, { flip: true, thickness: 0.5 });
+    drawCrescent(dc, cx + s * 0.08, mouthY, s * 0.17, s * 0.15, c.petMouth, fur, { flip: true, thickness: 0.5 });
+  } else if (mood === "sleepy") {
+    dc.setFillColor(hex(c.petMouth, 0.85));
+    dc.fillEllipse(new Rect(cx - s * 0.07, mouthY - s * 0.045, s * 0.14, s * 0.11));
+  } else {
+    // encourage — small determined mouth
+    dc.setFillColor(hex(c.petMouth, 0.9));
+    dc.fillEllipse(new Rect(cx - s * 0.1, mouthY - s * 0.03, s * 0.2, s * 0.075));
+  }
+
+  // ── mood extras ───────────────────────────────────────
+  // extras stay on the left so they never crowd the bow
+  if (mood === "sparkle") {
+    drawSpark(dc, cx - headRX * 1.02, cy - headRY * 0.72, s * 0.15 * p.twinkle, c.star, 0.95);
+    drawSpark(dc, cx - headRX * 1.1, cy + headRY * 0.12, s * 0.12 * (1.5 - p.twinkle), c.gYellow, 0.85);
+    drawHeart(dc, cx - headRX * 0.86, cy + headRY * 0.86, s * 0.16, c.neonPink, 0.9);
+  } else if (mood === "happy") {
+    drawHeart(dc, cx - headRX * 1.0, cy - headRY * 0.5 - p.bob, s * 0.17 * p.twinkle, c.neonPink, 0.9);
+  } else if (mood === "sleepy") {
+    // drifting z z z
+    for (let i = 0; i < 3; i++) {
+      const drift = (p.t + i / 3) % 1;
+      drawText(
+        dc,
+        "z",
+        new Rect(cx + headRX * 0.72 + i * s * 0.16, cy - headRY * (0.7 + drift * 0.75), s * 0.6, s * 0.5),
+        {
+          font: Font.boldRoundedSystemFont(Math.max(5, s * (0.2 + i * 0.06))),
+          color: hex(c.lav, 0.75 * (1 - drift)),
+          align: "left",
+        }
+      );
+    }
+  } else if (mood === "encourage") {
+    // little effort sweat drop by the left temple
+    dc.setFillColor(hex(c.gBlue, 0.85));
+    dc.fillEllipse(
+      new Rect(cx - headRX * 0.9, cy - headRY * 0.24 + p.bob, s * 0.11, s * 0.16)
+    );
+  } else {
+    drawSpark(dc, cx - headRX * 1.0, cy - headRY * 0.38, s * 0.1 * p.twinkle, c.lav, 0.7);
   }
 }
 
@@ -595,6 +730,18 @@ function petColumnWidth(family, w, pad) {
   if (family === "medium") return Math.floor(Math.min(avail * 0.36, 130));
   if (family === "large") return Math.floor(Math.min(avail * 0.42, 168));
   return Math.floor(Math.min(avail * 0.32, 240)); // extraLarge
+}
+
+/** Full-height buddy column on the left + the content column beside it. */
+function contentColumn(L, w, family) {
+  const petW = petColumnWidth(family, w, L.pad);
+  const bodyH = L.bodyBottom - L.bodyTop;
+  return {
+    petRect: { x: L.pad, y: L.bodyTop, w: petW, h: bodyH },
+    x: L.pad + petW + L.gap,
+    w: w - L.pad * 2 - petW - L.gap,
+    big: bodyH > 110,
+  };
 }
 
 function cardLabel(label, cardW) {
@@ -820,24 +967,25 @@ function paintStatCard(dc, rect, label, stat, c, { featured = false } = {}) {
   const innerTop = y + chromeTop;
   const title = cardLabel(label, w);
 
-  // Narrow column card (small square): stacked + centered, bar always visible
+  // Narrow column card: centered stack (label · % · done · bar), never edge-to-edge
   if (narrow && !tight) {
-    drawText(dc, title.toUpperCase(), new Rect(x + 2, innerTop, w - 4, 10), {
+    const labelH = 10;
+    const doneH = 9;
+    const pctH = Math.min(26, Math.max(14, h * 0.34));
+    const blockH = labelH + pctH + doneH + barH + 6;
+    const startY = Math.max(innerTop, y + (h - blockH) / 2);
+    drawText(dc, title.toUpperCase(), new Rect(x + 2, startY, w - 4, labelH), {
       font: Font.semiboldRoundedSystemFont(7),
       color: hex(c.mute, 0.95),
       align: "center",
     });
-    const doneH = 9;
-    const doneY = innerBottom - doneH;
-    const pctTop = innerTop + 10;
-    const pctH = Math.max(11, doneY - pctTop);
-    paintNeonPct(dc, x, pctTop, w, pctH, pctLabel(stat.rate), c, Math.min(15, pctH * 0.85));
-    drawText(dc, `${stat.done}/${stat.total}`, new Rect(x + 2, doneY, w - 4, doneH), {
+    paintNeonPct(dc, x, startY + labelH + 1, w, pctH, pctLabel(stat.rate), c, Math.min(17, pctH * 0.8));
+    drawText(dc, `${stat.done}/${stat.total}`, new Rect(x + 2, startY + labelH + pctH + 2, w - 4, doneH), {
       font: Font.mediumRoundedSystemFont(6.5),
       color: hex(c.inkSoft, 0.95),
       align: "center",
     });
-    paintCardBar(dc, x, barY, w, barH, stat.rate, c, inset);
+    paintCardBar(dc, x, startY + labelH + pctH + doneH + 4, w, barH, stat.rate, c, inset);
     return;
   }
 
@@ -881,12 +1029,17 @@ function paintStatCard(dc, rect, label, stat, c, { featured = false } = {}) {
 
   const labelH = 11;
   const doneH = 11;
-  const labelY = innerTop;
-  const doneY = innerBottom - doneH;
+  // Tall cards center their block instead of stretching it edge to edge
+  const tall = h > 150;
+  const pctBand = tall ? (featured ? 44 : 30) : 0;
+  const labelY = tall
+    ? y + Math.max(chromeTop, (h - (labelH + pctBand + doneH + 14)) / 2)
+    : innerTop;
+  const doneY = tall ? labelY + labelH + pctBand + 2 : innerBottom - doneH;
   const pctTop = labelY + labelH + 1;
   const pctBottom = doneY - 1;
   const pctH = Math.max(0, pctBottom - pctTop);
-  const pctSize = Math.min(featured ? 28 : 16, Math.max(11, pctH * 0.7));
+  const pctSize = Math.min(featured ? 34 : 18, Math.max(11, pctH * 0.7));
 
   drawText(dc, title.toUpperCase(), new Rect(x + inset, labelY, w - inset * 2, labelH), {
     font: Font.semiboldRoundedSystemFont(8),
@@ -901,10 +1054,10 @@ function paintStatCard(dc, rect, label, stat, c, { featured = false } = {}) {
   drawText(dc, `${stat.done}/${stat.total} done`, new Rect(x + inset, doneY, w - inset * 2, doneH), {
     font: Font.mediumRoundedSystemFont(7.5),
     color: hex(c.inkSoft, 0.95),
-    align: "left",
+    align: tall ? "center" : "left",
   });
 
-  paintCardBar(dc, x, barY, w, barH, stat.rate, c, inset);
+  paintCardBar(dc, x, tall ? doneY + doneH + 4 : barY, w, barH, stat.rate, c, inset);
 }
 
 function paintFooter(dc, L, text, c) {
@@ -996,13 +1149,13 @@ function paintDayFocus(dc, w, h, family, stats, c) {
   // Small square: boxed buddy + today, with week/month/year bars underneath
   if (family === "small") {
     const [sTop] = snapBands(L.bodyTop, L.bodyBottom, [
-      { min: 62, weight: 1.35 },
-      { min: 44, weight: 1 },
+      { min: 68, weight: 1.5 },
+      { min: 42, weight: 1 },
     ]);
     const sTopH = Math.max(0, sTop.h - gap * 0.5);
     const sCardY = sTop.y + sTopH + gap;
     const sCardH = Math.max(0, L.bodyBottom - sCardY);
-    const sPetW = 62;
+    const sPetW = 66;
     paintBuddyPanel(
       dc,
       { x: L.pad, y: sTop.y, w: sPetW, h: sTopH },
@@ -1027,46 +1180,32 @@ function paintDayFocus(dc, w, h, family, stats, c) {
     return;
   }
 
-  // Medium / large / xl: wider buddy column, narrower timeline bars
-  const [topBand] = snapBands(L.bodyTop, L.bodyBottom, [
-    { min: family === "medium" ? 54 : 100, weight: family === "medium" ? 1.4 : 1.65 },
-    { min: family === "medium" ? 34 : 52, weight: 1 },
+  // Medium / large / xl: buddy owns the full-height left column
+  const col = contentColumn(L, w, family);
+  paintBuddyPanel(dc, col.petRect, mood, c, focusRate, {
+    title: col.petRect.h > 150 ? "buddy // day hp" : null,
+    big: col.big,
+  });
+
+  const [heroBand] = snapBands(L.bodyTop, L.bodyBottom, [
+    { min: family === "medium" ? 56 : 108, weight: 1.5 },
+    { min: family === "medium" ? 40 : 58, weight: 1 },
   ]);
-  const topH = Math.max(0, topBand.h - gap * 0.5);
-  const cardY = topBand.y + topH + gap;
+  const heroH = Math.max(0, heroBand.h - gap * 0.5);
+  const cardY = heroBand.y + heroH + gap;
   const cardH = Math.max(0, L.bodyBottom - cardY);
-  const petW = petColumnWidth(family, w, L.pad);
-  const big = family === "large" || family === "extraLarge";
 
-  paintBuddyPanel(
-    dc,
-    { x: L.pad, y: topBand.y, w: petW, h: topH },
-    mood,
-    c,
-    focusRate,
-    { title: big ? "buddy // day hp" : null, big }
-  );
+  paintHeroToday(dc, { x: col.x, y: heroBand.y, w: col.w, h: heroH }, stats, c, {
+    showMissions: col.w > 230 && heroH > 90,
+  });
 
-  paintHeroToday(
-    dc,
-    {
-      x: L.pad + petW + gap,
-      y: topBand.y,
-      w: w - L.pad * 2 - petW - gap,
-      h: topH,
-    },
-    stats,
-    c,
-    { showMissions: big }
-  );
-
-  const cw = (w - L.pad * 2 - gap * 2) / 3;
+  const cw = (col.w - gap * 2) / 3;
   [
     ["week", stats.week],
     ["month", stats.month],
     ["year", stats.year],
   ].forEach(([label, st], i) => {
-    paintStatCard(dc, { x: L.pad + i * (cw + gap), y: cardY, w: cw, h: cardH }, label, st, c);
+    paintStatCard(dc, { x: col.x + i * (cw + gap), y: cardY, w: cw, h: cardH }, label, st, c);
   });
 
   paintFooter(dc, L, moodCopy(mood, "today"), c);
@@ -1108,35 +1247,36 @@ function paintWeekFocus(dc, w, h, family, stats, c) {
     return;
   }
 
+  const col = contentColumn(L, w, family);
+  paintBuddyPanel(dc, col.petRect, mood, c, stats.week.rate, {
+    title: col.petRect.h > 150 ? "buddy // week hp" : null,
+    big: col.big,
+  });
+
   const [topBand] = snapBands(L.bodyTop, L.bodyBottom, [
-    { min: family === "medium" ? 54 : 100, weight: 1.5 },
-    { min: family === "medium" ? 34 : 52, weight: 1 },
+    { min: family === "medium" ? 56 : 108, weight: 1.5 },
+    { min: family === "medium" ? 40 : 58, weight: 1 },
   ]);
   const topH = Math.max(0, topBand.h - gap * 0.5);
   const botY = topBand.y + topH + gap;
   const botH = Math.max(0, L.bodyBottom - botY);
-  const petW = petColumnWidth(family, w, L.pad);
-  const big = family === "large" || family === "extraLarge";
 
-  paintBuddyPanel(
-    dc,
-    { x: L.pad, y: topBand.y, w: petW, h: topH },
-    mood,
-    c,
-    stats.week.rate,
-    { title: big ? "buddy // week hp" : null, big }
-  );
   paintStatCard(
     dc,
-    { x: L.pad + petW + gap, y: topBand.y, w: w - L.pad * 2 - petW - gap, h: topH },
+    { x: col.x, y: topBand.y, w: col.w, h: topH },
     "this week",
     stats.week,
     c,
     { featured: true }
   );
-  const half = (w - L.pad * 2 - gap) / 2;
-  paintStatCard(dc, { x: L.pad, y: botY, w: half, h: botH }, "today", stats.day, c);
-  paintStatCard(dc, { x: L.pad + half + gap, y: botY, w: half, h: botH }, "month", stats.month, c);
+  const cw = (col.w - gap * 2) / 3;
+  [
+    ["day", stats.day],
+    ["month", stats.month],
+    ["year", stats.year],
+  ].forEach(([label, st], i) => {
+    paintStatCard(dc, { x: col.x + i * (cw + gap), y: botY, w: cw, h: botH }, label, st, c);
+  });
   paintFooter(dc, L, moodCopy(mood, "this week"), c);
 }
 
@@ -1179,24 +1319,14 @@ function paintSingleFocus(dc, w, h, family, stats, c, mode) {
     return;
   }
 
-  const petW = petColumnWidth(family, w, L.pad);
-  const big = family === "large" || family === "extraLarge";
-  paintBuddyPanel(
-    dc,
-    { x: L.pad, y: L.bodyTop, w: petW, h: bodyH },
-    mood,
-    c,
-    f.stat.rate,
-    { title: big ? `buddy // ${f.key} hp` : null, big }
-  );
+  const col = contentColumn(L, w, family);
+  paintBuddyPanel(dc, col.petRect, mood, c, f.stat.rate, {
+    title: col.petRect.h > 150 ? `buddy // ${f.key} hp` : null,
+    big: col.big,
+  });
   paintStatCard(
     dc,
-    {
-      x: L.pad + petW + L.gap,
-      y: L.bodyTop,
-      w: w - L.pad * 2 - petW - L.gap,
-      h: bodyH,
-    },
+    { x: col.x, y: L.bodyTop, w: col.w, h: bodyH },
     f.title,
     f.stat,
     c,
@@ -1241,35 +1371,31 @@ function paintPanel(dc, w, h, family, stats, c) {
     return;
   }
 
+  const col = contentColumn(L, w, family);
+  paintBuddyPanel(dc, col.petRect, mood, c, stats.day.rate, {
+    title: col.petRect.h > 150 ? "buddy // day hp" : null,
+    big: col.big,
+  });
+
   const [topBand] = snapBands(L.bodyTop, L.bodyBottom, [
-    { min: family === "medium" ? 54 : 100, weight: 1.5 },
-    { min: family === "medium" ? 34 : 52, weight: 1 },
+    { min: family === "medium" ? 56 : 108, weight: 1.5 },
+    { min: family === "medium" ? 40 : 58, weight: 1 },
   ]);
   const topH = Math.max(0, topBand.h - gap * 0.5);
   const botY = topBand.y + topH + gap;
   const botH = Math.max(0, L.bodyBottom - botY);
-  const petW = petColumnWidth(family, w, L.pad);
-  const big = family === "large" || family === "extraLarge";
 
-  paintBuddyPanel(
-    dc,
-    { x: L.pad, y: topBand.y, w: petW, h: topH },
-    mood,
-    c,
-    stats.day.rate,
-    { title: big ? "buddy // day hp" : null, big }
-  );
   paintStatCard(
     dc,
-    { x: L.pad + petW + gap, y: topBand.y, w: w - L.pad * 2 - petW - gap, h: topH },
+    { x: col.x, y: topBand.y, w: col.w, h: topH },
     "today",
     stats.day,
     c,
     { featured: true }
   );
-  const half = (w - L.pad * 2 - gap) / 2;
-  paintStatCard(dc, { x: L.pad, y: botY, w: half, h: botH }, "this week", stats.week, c);
-  paintStatCard(dc, { x: L.pad + half + gap, y: botY, w: half, h: botH }, "this month", stats.month, c);
+  const half = (col.w - gap) / 2;
+  paintStatCard(dc, { x: col.x, y: botY, w: half, h: botH }, "this week", stats.week, c);
+  paintStatCard(dc, { x: col.x + half + gap, y: botY, w: half, h: botH }, "this month", stats.month, c);
   paintFooter(dc, L, moodCopy(mood, "today"), c);
 }
 

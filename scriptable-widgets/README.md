@@ -25,6 +25,17 @@ Edit the Home Screen widget → **Parameter** → type one of:
 | `panel` | today vs week vs month |
 | `all` | day featured control panel + soft week/month/year |
 
+### Pet animation
+
+The pet is drawn as a face: head, ears, ribbon bow on the head under the right ear,
+blush, and big eyes whose sparkle highlights sit inside the iris.
+
+It cycles 8 idle poses (float bob, ear sway, blink, wink, sparkle twinkle).
+Expressions follow the mood, so they stay consistent: sleepy keeps both eyes shut
+with drifting `z`s, sparkle grins with star glints, encourage gets a small effort drop.
+A Home Screen widget shows whichever pose is current when iOS refreshes it.
+To watch the loop, run the script inside Scriptable → pick a mode → **♥ ANIMATION**.
+
 ### What “success rate” means
 
 - **Set** = reminders due in that period  
@@ -43,7 +54,7 @@ The pet’s mood changes with today’s (or the focused period’s) rate.
 ## Updating widgets
 
 1. Select All → Paste the **entire** new file in Scriptable (partial edits keep old bugs).  
-2. Confirm the top `VERSION:` line matches the repo (current pet: `2026-08-06-anim-bars`).  
+2. Confirm the top `VERSION:` line matches the repo (current pet: `2026-08-06-face-v2`).  
 3. Remove & re-add the Home Screen widget so iOS reloads it.
 
 Layouts use exclusive snap bands so header / pet / hero / cards / footer never overlap across small · medium · large · extraLarge.
