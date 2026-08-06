@@ -7,7 +7,7 @@
 // Tracks completed / set reminders (success rate)
 // for today · week · month · year.
 //
-// VERSION: 2026-08-02-focus-hp
+// VERSION: 2026-08-06-buddy-box
 // (if your Scriptable file does not say that, you have an old paste)
 //
 // Widget Parameter:
@@ -356,22 +356,30 @@ function heartsFromRate(rate) {
 
 /**
  * Floating HP hearts only — no circle / bay.
- * Rate comes from the widget’s main focus view.
+ * Always clamped to maxWidth so they never bleed into neighbor panels.
  */
-function drawFocusHearts(dc, cx, y, scale, focusRate, c) {
+function drawFocusHearts(dc, cx, y, scale, focusRate, c, maxWidth) {
   const filled = heartsFromRate(focusRate);
-  const px = Math.max(1.35, scale * 0.13);
-  const heartW = 7 * px;
+  let px = Math.max(1.2, scale * 0.12);
+  let heartW = 7 * px;
+  let gap = Math.max(1.2, px * 0.55);
+  let totalW = heartW * 4 + gap * 3;
+  const limit = maxWidth != null ? Math.max(16, maxWidth) : totalW;
+  if (totalW > limit) {
+    const k = limit / totalW;
+    px *= k;
+    heartW = 7 * px;
+    gap = Math.max(1, px * 0.55);
+    totalW = heartW * 4 + gap * 3;
+  }
   const heartH = 6 * px;
-  const gap = Math.max(1.4, px * 0.65);
-  const totalW = heartW * 4 + gap * 3;
   let hx = cx - totalW / 2;
   for (let i = 0; i < 4; i++) {
     const on = i < filled;
     drawPixelHeart(dc, hx, y, px, on ? c.neonPink : c.dimStroke, on);
     hx += heartW + gap;
   }
-  return heartH;
+  return { heartH, totalW, px };
 }
 
 /** Pet body only (no HP bay). */
@@ -435,33 +443,36 @@ function drawPetBody(dc, cx, cy, scale, mood, c) {
   }
 
   if (mood === "sparkle") {
-    drawSpark(dc, cx + s * 0.9, cy - s * 0.75, s * 0.17, c.star, 0.95);
-    drawSpark(dc, cx - s * 0.95, cy - s * 0.35, s * 0.13, c.gYellow, 0.85);
-    drawHeart(dc, cx + s * 0.8, cy + s * 0.6, s * 0.24, c.neonPink, 0.95);
+    drawSpark(dc, cx + s * 0.72, cy - s * 0.55, s * 0.14, c.star, 0.95);
+    drawSpark(dc, cx - s * 0.75, cy - s * 0.28, s * 0.11, c.gYellow, 0.85);
+    drawHeart(dc, cx + s * 0.62, cy + s * 0.48, s * 0.18, c.neonPink, 0.95);
   } else if (mood === "happy") {
-    drawHeart(dc, cx + s * 0.85, cy - s * 0.55, s * 0.22, c.neonPink, 0.9);
+    drawHeart(dc, cx + s * 0.68, cy - s * 0.42, s * 0.18, c.neonPink, 0.9);
   } else {
-    drawSpark(dc, cx + s * 0.8, cy - s * 0.55, s * 0.12, c.lav, 0.7);
+    drawSpark(dc, cx + s * 0.65, cy - s * 0.42, s * 0.1, c.lav, 0.7);
   }
 }
 
 /**
- * Auto-fit pet + floating HP hearts inside a rect.
- * Hearts + mood both use the main focus view’s success rate.
+ * Auto-fit pet + HP hearts inside a rect (never overflows width).
+ * Hearts sit above the pet in the same proportional column.
  */
-function drawPetBundle(dc, rect, mood, c, focusRate) {
+function drawPetBundle(dc, rect, mood, c, focusRate, { big = false } = {}) {
   const { x, y, w, h } = rect;
-  if (w < 20 || h < 28) return;
+  if (w < 18 || h < 24) return;
 
-  // Hearts row (~0.9*s) + gap + pet (ears→chin ≈ 2.05*s)
-  const heartGap = 4;
-  let s = Math.min(w / 2.05, h / 2.85);
-  s = Math.max(12, Math.min(s, 48));
-  let heartBand = Math.max(8, s * 0.85);
+  const padX = 4;
+  const innerW = Math.max(12, w - padX * 2);
+  const heartGap = 3;
+  // Prefer a larger pet when the column is tall/wide (large square)
+  const maxS = big ? 72 : 52;
+  let s = Math.min(innerW / 2.05, h / 2.55, maxS);
+  s = Math.max(11, s);
+  let heartBand = Math.max(7, Math.min(s * 0.75, h * 0.22));
 
   let totalH = heartBand + heartGap + s * 2.05;
-  if (totalH > h - 1) {
-    const k = (h - 1) / totalH;
+  if (totalH > h - 2) {
+    const k = (h - 2) / totalH;
     s *= k;
     heartBand *= k;
     totalH = heartBand + heartGap + s * 2.05;
@@ -469,9 +480,63 @@ function drawPetBundle(dc, rect, mood, c, focusRate) {
 
   const cx = x + w / 2;
   const top = y + Math.max(0, (h - totalH) / 2);
-  drawFocusHearts(dc, cx, top + Math.max(0, (heartBand - s * 0.7) / 2), s, focusRate, c);
+  drawFocusHearts(dc, cx, top + Math.max(0, (heartBand - s * 0.65) / 2), s, focusRate, c, innerW);
   const petCy = top + heartBand + heartGap + s * 1.05;
-  drawPetBody(dc, cx, Math.min(petCy, y + h - s * 0.95), s, mood, c);
+  drawPetBody(dc, cx, Math.min(petCy, y + h - s * 0.92), s, mood, c);
+}
+
+/** Chrome box that owns pet + hearts as one proportional left unit. */
+function paintBuddyPanel(dc, rect, mood, c, focusRate, { title = null, big = false } = {}) {
+  const { x, y, w, h } = rect;
+  if (w < 24 || h < 28) return;
+  paintChromePanel(dc, rect, c, { radius: Math.min(14, w * 0.12), glow: big });
+  const inset = big ? 8 : 6;
+  let contentY = y + inset;
+  let contentH = h - inset * 2;
+  if (title) {
+    drawText(dc, title, new Rect(x + 30, y + 6, w - 36, 11), {
+      font: Font.semiboldRoundedSystemFont(7.5),
+      color: hex(c.mute, 0.95),
+      align: "left",
+    });
+    contentY = y + 18;
+    contentH = h - 18 - inset;
+  }
+  drawPetBundle(
+    dc,
+    { x: x + inset, y: contentY, w: w - inset * 2, h: Math.max(20, contentH) },
+    mood,
+    c,
+    focusRate,
+    { big }
+  );
+}
+
+/** Left pet column width — wider on medium/large so bars take less room. */
+function petColumnWidth(family, w, pad) {
+  const avail = w - pad * 2;
+  if (family === "small") return avail;
+  if (family === "medium") return Math.floor(Math.min(avail * 0.36, 130));
+  if (family === "large") return Math.floor(Math.min(avail * 0.42, 168));
+  return Math.floor(Math.min(avail * 0.32, 240)); // extraLarge
+}
+
+function cardLabel(label, cardW) {
+  const raw = String(label || "");
+  if (cardW >= 108) return raw;
+  const key = raw.toLowerCase();
+  if (key === "month" || key === "this month") return "MON";
+  if (key === "week" || key === "this week") return "WEEK";
+  if (key === "year" || key === "this year") return "YEAR";
+  if (key === "today") return "DAY";
+  return raw.length > 4 ? raw.slice(0, 4) : raw;
+}
+
+/** Centered shorter success bar inside a card (not edge-to-edge). */
+function paintCardBar(dc, x, y, cardW, barH, rate, c, inset) {
+  const barW = Math.max(18, Math.floor((cardW - inset * 2) * 0.72));
+  const barX = x + Math.floor((cardW - barW) / 2);
+  paintSuccessBar(dc, barX, y, barW, barH, rate === null ? 0 : rate, c);
 }
 
 /**
@@ -673,12 +738,12 @@ function paintStatCard(dc, rect, label, stat, c, { featured = false } = {}) {
   const barH = featured && h >= 60 ? 8 : h >= 50 ? 5 : 3.5;
   const barY = y + h - inset - barH;
   const innerBottom = barY - 2;
-  const chromeTop = tight ? 4 : compact ? 6 : 12; // room under traffic dots
+  const chromeTop = tight ? 4 : compact ? 6 : 12;
   const innerTop = y + chromeTop;
+  const title = cardLabel(label, w);
 
   if (tight) {
-    // One row: LABEL · done … pct   + bar
-    drawText(dc, label.toUpperCase(), new Rect(x + inset, innerTop, w * 0.42, 11), {
+    drawText(dc, title.toUpperCase(), new Rect(x + inset, innerTop, w * 0.42, 11), {
       font: Font.semiboldRoundedSystemFont(6.5),
       color: hex(c.mute, 0.95),
       align: "left",
@@ -690,14 +755,13 @@ function paintStatCard(dc, rect, label, stat, c, { featured = false } = {}) {
     });
     const pctH = Math.max(12, innerBottom - innerTop);
     paintNeonPct(dc, x + w * 0.35, innerTop, w * 0.62, pctH, pctLabel(stat.rate), c, Math.min(14, pctH * 0.85));
-    paintSuccessBar(dc, x + inset, barY, w - inset * 2, barH, stat.rate === null ? 0 : stat.rate, c);
+    paintCardBar(dc, x, barY, w, barH, stat.rate, c, inset);
     return;
   }
 
   if (compact) {
-    // Label + done on top strip, pct fills middle, bar pinned bottom — never overflows
     const topBand = 12;
-    drawText(dc, label.toUpperCase(), new Rect(x + inset, innerTop, w * 0.55, 10), {
+    drawText(dc, title.toUpperCase(), new Rect(x + inset, innerTop, w * 0.48, 10), {
       font: Font.semiboldRoundedSystemFont(7),
       color: hex(c.mute, 0.95),
       align: "left",
@@ -712,11 +776,10 @@ function paintStatCard(dc, rect, label, stat, c, { featured = false } = {}) {
     if (pctH >= 12) {
       paintNeonPct(dc, x, pctTop, w, pctH, pctLabel(stat.rate), c, Math.min(featured ? 20 : 15, pctH * 0.8));
     }
-    paintSuccessBar(dc, x + inset, barY, w - inset * 2, barH, stat.rate === null ? 0 : stat.rate, c);
+    paintCardBar(dc, x, barY, w, barH, stat.rate, c, inset);
     return;
   }
 
-  // Comfortable card — exclusive vertical stack inside panel
   const labelH = 11;
   const doneH = 11;
   const labelY = innerTop;
@@ -726,7 +789,7 @@ function paintStatCard(dc, rect, label, stat, c, { featured = false } = {}) {
   const pctH = Math.max(0, pctBottom - pctTop);
   const pctSize = Math.min(featured ? 28 : 16, Math.max(11, pctH * 0.7));
 
-  drawText(dc, label.toUpperCase(), new Rect(x + inset, labelY, w - inset * 2, labelH), {
+  drawText(dc, title.toUpperCase(), new Rect(x + inset, labelY, w - inset * 2, labelH), {
     font: Font.semiboldRoundedSystemFont(8),
     color: hex(c.mute, 0.95),
     align: "left",
@@ -742,7 +805,7 @@ function paintStatCard(dc, rect, label, stat, c, { featured = false } = {}) {
     align: "left",
   });
 
-  paintSuccessBar(dc, x + inset, barY, w - inset * 2, barH, stat.rate === null ? 0 : stat.rate, c);
+  paintCardBar(dc, x, barY, w, barH, stat.rate, c, inset);
 }
 
 function paintFooter(dc, L, text, c) {
@@ -805,7 +868,7 @@ function paintHeroToday(dc, rect, stats, c, { showMissions = false } = {}) {
       color: hex(c.inkSoft, 0.95),
       align: "center",
     });
-    paintSuccessBar(dc, x + inset, barY, leftW - inset * 2, barH, stats.day.rate === null ? 0 : stats.day.rate, c);
+    paintCardBar(dc, x, barY, leftW, barH, stats.day.rate, c, inset);
     paintMissionList(dc, { x: x + leftW, y: y + 18, w: w - leftW - 8, h: h - 26 }, stats.day.titles, c);
   } else {
     paintNeonPct(dc, x, pctTop, w, Math.min(compact ? 28 : 36, pctH), pctLabel(stats.day.rate), c, Math.min(compact ? 22 : 28, pctH * 0.8));
@@ -814,64 +877,50 @@ function paintHeroToday(dc, rect, stats, c, { showMissions = false } = {}) {
       color: hex(c.inkSoft, 0.95),
       align: "center",
     });
-    paintSuccessBar(dc, x + inset, barY, w - inset * 2, barH, stats.day.rate === null ? 0 : stats.day.rate, c);
+    paintCardBar(dc, x, barY, w, barH, stats.day.rate, c, inset);
   }
 }
 
 function paintDayFocus(dc, w, h, family, stats, c) {
   const L = bandLayout(w, h, family);
   const mood = moodFrom(stats.day.rate);
+  const focusRate = stats.day.rate;
   paintHeader(dc, L, c, modeChip("day"), `${stats.day.done}/${stats.day.total} today`);
 
   const gap = L.gap;
-  // Auto-snap top (pet+hero) vs bottom (week/month/year) so nothing collides
-  const [topBand] = snapBands(L.bodyTop, L.bodyBottom, [
-    { min: family === "medium" ? 52 : family === "small" ? 48 : 90, weight: family === "medium" ? 1.35 : 1.55 },
-    { min: family === "medium" ? 36 : family === "small" ? 32 : 48, weight: 1 },
-  ]);
-  // Gap reserved between top (pet+hero) and bottom cards — exclusive bands, no overlap
-  const topH = Math.max(0, topBand.h - gap * 0.5);
-  const cardY = topBand.y + topH + gap;
-  const cardH = Math.max(0, L.bodyBottom - cardY);
 
-  const focusRate = stats.day.rate;
-
+  // Small square: hearts + pet only (boxed), no timeline crush
   if (family === "small") {
-    const petW = 58;
-    drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, focusRate);
-    paintHeroToday(
+    paintBuddyPanel(
       dc,
-      { x: L.pad + petW + 4, y: topBand.y, w: w - L.pad * 2 - petW - 4, h: topH },
-      stats,
-      c
+      { x: L.pad, y: L.bodyTop, w: w - L.pad * 2, h: L.bodyBottom - L.bodyTop },
+      mood,
+      c,
+      focusRate,
+      { title: "buddy // hp" }
     );
-    const cw = (w - L.pad * 2 - gap * 2) / 3;
-    ["week", "month", "year"].forEach((k, i) => {
-      paintStatCard(dc, { x: L.pad + i * (cw + gap), y: cardY, w: cw, h: cardH }, k, stats[k], c);
-    });
     return;
   }
 
-  const petW = family === "extraLarge" ? w * 0.26 : family === "large" ? w * 0.3 : 78;
+  // Medium / large / xl: wider buddy column, narrower timeline bars
+  const [topBand] = snapBands(L.bodyTop, L.bodyBottom, [
+    { min: family === "medium" ? 54 : 100, weight: family === "medium" ? 1.4 : 1.65 },
+    { min: family === "medium" ? 34 : 52, weight: 1 },
+  ]);
+  const topH = Math.max(0, topBand.h - gap * 0.5);
+  const cardY = topBand.y + topH + gap;
+  const cardH = Math.max(0, L.bodyBottom - cardY);
+  const petW = petColumnWidth(family, w, L.pad);
+  const big = family === "large" || family === "extraLarge";
 
-  if (family === "large" || family === "extraLarge") {
-    const leftPanel = { x: L.pad, y: topBand.y, w: petW, h: topH };
-    paintChromePanel(dc, leftPanel, c, { radius: 14, glow: true });
-    drawText(dc, "buddy // day hp", new Rect(leftPanel.x + 34, leftPanel.y + 7, leftPanel.w - 40, 11), {
-      font: Font.semiboldRoundedSystemFont(8),
-      color: hex(c.mute, 0.95),
-      align: "left",
-    });
-    drawPetBundle(
-      dc,
-      { x: leftPanel.x + 4, y: leftPanel.y + 18, w: leftPanel.w - 8, h: leftPanel.h - 22 },
-      mood,
-      c,
-      focusRate
-    );
-  } else {
-    drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, focusRate);
-  }
+  paintBuddyPanel(
+    dc,
+    { x: L.pad, y: topBand.y, w: petW, h: topH },
+    mood,
+    c,
+    focusRate,
+    { title: big ? "buddy // day hp" : null, big }
+  );
 
   paintHeroToday(
     dc,
@@ -883,7 +932,7 @@ function paintDayFocus(dc, w, h, family, stats, c) {
     },
     stats,
     c,
-    { showMissions: family === "large" || family === "extraLarge" }
+    { showMissions: big }
   );
 
   const cw = (w - L.pad * 2 - gap * 2) / 3;
@@ -904,29 +953,37 @@ function paintWeekFocus(dc, w, h, family, stats, c) {
   paintHeader(dc, L, c, modeChip("week"), `${stats.week.done}/${stats.week.total} week`);
 
   const gap = L.gap;
-  const [topBand, botBand] = snapBands(L.bodyTop, L.bodyBottom, [
-    { min: family === "medium" ? 54 : 48, weight: 1.5 },
-    { min: family === "medium" ? 34 : 36, weight: 1 },
+
+  if (family === "small") {
+    paintBuddyPanel(
+      dc,
+      { x: L.pad, y: L.bodyTop, w: w - L.pad * 2, h: L.bodyBottom - L.bodyTop },
+      mood,
+      c,
+      stats.week.rate,
+      { title: "buddy // week hp" }
+    );
+    return;
+  }
+
+  const [topBand] = snapBands(L.bodyTop, L.bodyBottom, [
+    { min: family === "medium" ? 54 : 100, weight: 1.5 },
+    { min: family === "medium" ? 34 : 52, weight: 1 },
   ]);
   const topH = Math.max(0, topBand.h - gap * 0.5);
   const botY = topBand.y + topH + gap;
   const botH = Math.max(0, L.bodyBottom - botY);
+  const petW = petColumnWidth(family, w, L.pad);
+  const big = family === "large" || family === "extraLarge";
 
-  if (family === "small") {
-    paintStatCard(
-      dc,
-      { x: L.pad, y: topBand.y, w: w - L.pad * 2, h: topH },
-      "this week",
-      stats.week,
-      c,
-      { featured: true }
-    );
-    paintStatCard(dc, { x: L.pad, y: botY, w: w - L.pad * 2, h: botH }, "today", stats.day, c);
-    return;
-  }
-
-  const petW = family === "large" || family === "extraLarge" ? 100 : 72;
-  drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, stats.week.rate);
+  paintBuddyPanel(
+    dc,
+    { x: L.pad, y: topBand.y, w: petW, h: topH },
+    mood,
+    c,
+    stats.week.rate,
+    { title: big ? "buddy // week hp" : null, big }
+  );
   paintStatCard(
     dc,
     { x: L.pad + petW + gap, y: topBand.y, w: w - L.pad * 2 - petW - gap, h: topH },
@@ -949,19 +1006,27 @@ function paintSingleFocus(dc, w, h, family, stats, c, mode) {
 
   const bodyH = L.bodyBottom - L.bodyTop;
   if (family === "small") {
-    paintStatCard(
+    paintBuddyPanel(
       dc,
       { x: L.pad, y: L.bodyTop, w: w - L.pad * 2, h: bodyH },
-      f.title,
-      f.stat,
+      mood,
       c,
-      { featured: true }
+      f.stat.rate,
+      { title: `buddy // ${f.key} hp` }
     );
     return;
   }
 
-  const petW = family === "large" || family === "extraLarge" ? w * 0.28 : 80;
-  drawPetBundle(dc, { x: L.pad, y: L.bodyTop, w: petW, h: bodyH }, mood, c, f.stat.rate);
+  const petW = petColumnWidth(family, w, L.pad);
+  const big = family === "large" || family === "extraLarge";
+  paintBuddyPanel(
+    dc,
+    { x: L.pad, y: L.bodyTop, w: petW, h: bodyH },
+    mood,
+    c,
+    f.stat.rate,
+    { title: big ? `buddy // ${f.key} hp` : null, big }
+  );
   paintStatCard(
     dc,
     {
@@ -984,31 +1049,37 @@ function paintPanel(dc, w, h, family, stats, c) {
   paintHeader(dc, L, c, modeChip("panel"), "today · week · month");
 
   const gap = L.gap;
+
+  if (family === "small") {
+    paintBuddyPanel(
+      dc,
+      { x: L.pad, y: L.bodyTop, w: w - L.pad * 2, h: L.bodyBottom - L.bodyTop },
+      mood,
+      c,
+      stats.day.rate,
+      { title: "buddy // hp" }
+    );
+    return;
+  }
+
   const [topBand] = snapBands(L.bodyTop, L.bodyBottom, [
-    { min: family === "medium" ? 54 : 48, weight: 1.5 },
-    { min: family === "medium" ? 34 : 36, weight: 1 },
+    { min: family === "medium" ? 54 : 100, weight: 1.5 },
+    { min: family === "medium" ? 34 : 52, weight: 1 },
   ]);
   const topH = Math.max(0, topBand.h - gap * 0.5);
   const botY = topBand.y + topH + gap;
   const botH = Math.max(0, L.bodyBottom - botY);
+  const petW = petColumnWidth(family, w, L.pad);
+  const big = family === "large" || family === "extraLarge";
 
-  if (family === "small") {
-    paintStatCard(
-      dc,
-      { x: L.pad, y: topBand.y, w: w - L.pad * 2, h: topH },
-      "today",
-      stats.day,
-      c,
-      { featured: true }
-    );
-    const half = (w - L.pad * 2 - gap) / 2;
-    paintStatCard(dc, { x: L.pad, y: botY, w: half, h: botH }, "week", stats.week, c);
-    paintStatCard(dc, { x: L.pad + half + gap, y: botY, w: half, h: botH }, "month", stats.month, c);
-    return;
-  }
-
-  const petW = family === "large" || family === "extraLarge" ? 90 : 70;
-  drawPetBundle(dc, { x: L.pad, y: topBand.y, w: petW, h: topH }, mood, c, stats.day.rate);
+  paintBuddyPanel(
+    dc,
+    { x: L.pad, y: topBand.y, w: petW, h: topH },
+    mood,
+    c,
+    stats.day.rate,
+    { title: big ? "buddy // day hp" : null, big }
+  );
   paintStatCard(
     dc,
     { x: L.pad + petW + gap, y: topBand.y, w: w - L.pad * 2 - petW - gap, h: topH },
